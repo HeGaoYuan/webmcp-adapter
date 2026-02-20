@@ -34,10 +34,21 @@ function connectToNativeHost() {
 
   ws.addEventListener("open", () => {
     console.log("[WebMCP] Connected to native host");
-    // 连接成功后，把当前所有工具同步给 native host
+
+    // 先把内存中还存着的工具同步过去（正常情况）
     for (const [tabId, tabTools] of toolRegistry.entries()) {
       sendToNative({ type: "tools_updated", tabId, tools: tabTools });
     }
+
+    // Service Worker 被 Chrome 挂起重启后 toolRegistry 为空，
+    // 广播 resync_tools 让各 Tab 的 content script 重新上报工具
+    chrome.tabs.query({}, (tabs) => {
+      for (const tab of tabs) {
+        chrome.tabs.sendMessage(tab.id, { type: "resync_tools" }, () => {
+          void chrome.runtime.lastError; // 忽略没有 content script 的 Tab 的错误
+        });
+      }
+    });
   });
 
   ws.addEventListener("message", async (event) => {

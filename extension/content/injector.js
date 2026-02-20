@@ -48,9 +48,18 @@ window.__webmcpRegister = function (adapter) {
   chrome.runtime.sendMessage({ type: "register_tools", tools: toolDefs });
 };
 
-// ─── 处理工具调用请求 ──────────────────────────────────────────────────────────
+// ─── 处理工具调用请求 & 重连时的工具重新上报 ───────────────────────────────────
 
 chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
+  // Service Worker 重连后请求重新上报工具（解决 SW 被挂起后 toolRegistry 丢失的问题）
+  if (msg.type === "resync_tools") {
+    if (toolDefs.length > 0) {
+      chrome.runtime.sendMessage({ type: "register_tools", tools: toolDefs });
+    }
+    sendResponse({ ok: true });
+    return true;
+  }
+
   if (msg.type !== "call_tool") return;
 
   const { toolName, args } = msg;
