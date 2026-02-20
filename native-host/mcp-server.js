@@ -42,6 +42,18 @@ export class McpServer {
   _setupHandlers() {
     // ── list_tools ─────────────────────────────────────────────────────────
     this.server.setRequestHandler(ListToolsRequestSchema, async () => {
+      // 如果工具列表为空，等待扩展连接（最多 5 秒）
+      // 解决 Claude Desktop 在扩展连上前就查询工具列表的时序问题
+      if (this.bridge.getAllTools().length === 0) {
+        await new Promise(resolve => {
+          const timer = setTimeout(resolve, 5000);
+          this.bridge.once("tools_updated", () => {
+            clearTimeout(timer);
+            resolve();
+          });
+        });
+      }
+
       const tools = this.bridge.getAllTools();
 
       return {
