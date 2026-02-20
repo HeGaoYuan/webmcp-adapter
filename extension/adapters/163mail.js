@@ -86,9 +86,10 @@ function parseEmailList() {
   return emails;
 }
 
-// ─── 适配器定义 ────────────────────────────────────────────────────────────
+// ─── 适配器注册 ────────────────────────────────────────────────────────────
+// 不使用 ES module export，由 background 通过 executeScript 注入后调用 __webmcpRegister
 
-export default {
+window.__webmcpRegister({
   name: "163-mail-adapter",
   match: ["mail.163.com"],
   tools: [
@@ -232,4 +233,4 @@ export default {
     },
     */
   ],
-};
+});

@@ -2,13 +2,15 @@
   "name": "webmcp-adapter",
   "version": "0.1.0",
   "description": "Community-driven WebMCP adapter: browser extension + MCP server bridge",
+  "type": "module",
   "main": "native-host/index.js",
   "scripts": {
     "start": "node native-host/index.js",
     "install-host": "node native-host/install.js"
   },
   "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.0.0"
+    "@modelcontextprotocol/sdk": "^1.0.0",
+    "ws": "^8.0.0"
   },
   "engines": {
     "node": ">=18"

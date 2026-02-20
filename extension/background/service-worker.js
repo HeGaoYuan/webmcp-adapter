@@ -2,50 +2,63 @@
  * Background Service Worker
  *
  * 职责：
- * 1. 维护与 Native Host 的 Native Messaging 连接
+ * 1. 通过 WebSocket 连接 native-host（ws://localhost:3711）
  * 2. 维护每个 Tab 注册的工具列表（toolRegistry）
  * 3. 处理来自 content script 的工具注册消息
- * 4. 处理来自 Native Host 的工具调用请求，转发到对应 Tab
+ * 4. 处理来自 native-host 的工具调用请求，转发到对应 Tab
  */
+
+const WS_URL = "ws://localhost:3711";
 
 // ─── 状态 ──────────────────────────────────────────────────────────────────
 
-/** @type {chrome.runtime.Port | null} */
-let nativePort = null;
+/** @type {WebSocket | null} */
+let ws = null;
 
 /**
  * 工具注册表：tabId -> [{ name, description, parameters }]
- * 注意：handler 不能跨进程传输，真正执行时通过消息发到 content script
  * @type {Map<number, Array<{name: string, description: string, parameters: object}>>}
  */
 const toolRegistry = new Map();
 
-// ─── Native Messaging ───────────────────────────────────────────────────────
+// ─── WebSocket 连接 ──────────────────────────────────────────────────────────
 
-function connectNativeHost() {
+function connectToNativeHost() {
   try {
-    nativePort = chrome.runtime.connectNative("com.webmcp.adapter");
-    console.log("[WebMCP] Connected to native host");
-
-    nativePort.onMessage.addListener(handleNativeMessage);
-
-    nativePort.onDisconnect.addListener(() => {
-      console.warn("[WebMCP] Native host disconnected:", chrome.runtime.lastError?.message);
-      nativePort = null;
-      // 5秒后重连
-      setTimeout(connectNativeHost, 5000);
-    });
+    ws = new WebSocket(WS_URL);
   } catch (err) {
-    console.error("[WebMCP] Failed to connect native host:", err);
+    console.warn("[WebMCP] Failed to create WebSocket:", err.message);
+    setTimeout(connectToNativeHost, 5000);
+    return;
   }
+
+  ws.addEventListener("open", () => {
+    console.log("[WebMCP] Connected to native host");
+    // 连接成功后，把当前所有工具同步给 native host
+    for (const [tabId, tabTools] of toolRegistry.entries()) {
+      sendToNative({ type: "tools_updated", tabId, tools: tabTools });
+    }
+  });
+
+  ws.addEventListener("message", async (event) => {
+    let msg;
+    try { msg = JSON.parse(event.data); } catch { return; }
+    await handleNativeMessage(msg);
+  });
+
+  ws.addEventListener("close", () => {
+    console.warn("[WebMCP] Native host disconnected, reconnecting in 5s...");
+    ws = null;
+    setTimeout(connectToNativeHost, 5000);
+  });
+
+  ws.addEventListener("error", () => {
+    // close 事件会跟着触发，在那里重连
+  });
 }
 
-/**
- * 处理来自 Native Host 的消息
- * 消息格式：{ type, id, ... }
- * - list_tools: 返回所有已注册工具（跨所有 Tab）
- * - call_tool: 调用指定 tabId 上的工具
- */
+// ─── 处理来自 Native Host 的消息 ───────────────────────────────────────────
+
 async function handleNativeMessage(msg) {
   console.log("[WebMCP] <- native:", msg);
 
@@ -63,26 +76,22 @@ async function handleNativeMessage(msg) {
     }
 
   } else if (msg.type === "get_active_tab") {
-    // Native Host 可以查询当前活跃的 Tab，以便确定调用哪个 Tab
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
     sendToNative({ type: "get_active_tab_result", id: msg.id, tabId: tab?.id ?? null });
   }
 }
 
 function sendToNative(msg) {
-  if (!nativePort) {
+  if (!ws || ws.readyState !== WebSocket.OPEN) {
     console.warn("[WebMCP] Cannot send to native: not connected");
     return;
   }
   console.log("[WebMCP] -> native:", msg);
-  nativePort.postMessage(msg);
+  ws.send(JSON.stringify(msg));
 }
 
 // ─── 工具注册表管理 ─────────────────────────────────────────────────────────
 
-/**
- * 收集所有 Tab 的工具，附带 tabId 信息供 MCP 路由使用
- */
 function gatherAllTools() {
   const all = [];
   for (const [tabId, tools] of toolRegistry.entries()) {
@@ -93,9 +102,6 @@ function gatherAllTools() {
   return all;
 }
 
-/**
- * 向指定 Tab 的 content script 发送工具调用请求
- */
 async function callToolInTab(tabId, toolName, args) {
   const response = await chrome.tabs.sendMessage(tabId, {
     type: "call_tool",
@@ -106,10 +112,10 @@ async function callToolInTab(tabId, toolName, args) {
   return response?.result;
 }
 
-// ─── 来自 Content Script 的消息 ────────────────────────────────────────────
+// ─── 来自 Content Script / 测试页面的消息 ──────────────────────────────────
 
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
-  // 来自测试页面的工具调用（sender.tab 为 null，因为测试页是扩展页面）
+  // 来自测试页面的工具调用
   if (msg.type === "test_call_tool") {
     callToolInTab(msg.tabId, msg.toolName, msg.args)
       .then(result => sendResponse({ result }))
@@ -117,15 +123,13 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     return true;
   }
 
-  if (!sender.tab) return; // 以下只处理来自 content script 的消息
+  if (!sender.tab) return;
 
   const tabId = sender.tab.id;
 
   if (msg.type === "register_tools") {
     toolRegistry.set(tabId, msg.tools);
     console.log(`[WebMCP] Tab ${tabId} registered ${msg.tools.length} tools:`, msg.tools.map(t => t.name));
-
-    // 通知 Native Host 工具列表已更新
     sendToNative({ type: "tools_updated", tabId, tools: msg.tools });
     sendResponse({ ok: true });
 
@@ -133,7 +137,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     sendResponse({ tools: gatherAllTools() });
   }
 
-  return true; // 保持 sendResponse 通道
+  return true;
 });
 
 // Tab 关闭时清理
@@ -144,6 +148,40 @@ chrome.tabs.onRemoved.addListener((tabId) => {
   }
 });
 
+// ─── Adapter 注入 ───────────────────────────────────────────────────────────
+
+const ADAPTER_MAP = [
+  { match: "mail.163.com",    file: "adapters/163mail.js" },
+  { match: "mail.google.com", file: "adapters/gmail.js"   },
+];
+
+async function injectAdapters(tabId, url) {
+  let hostname;
+  try { hostname = new URL(url).hostname; } catch { return; }
+
+  const matches = ADAPTER_MAP.filter(e => hostname.includes(e.match));
+  if (matches.length === 0) return;
+
+  for (const entry of matches) {
+    try {
+      await chrome.scripting.executeScript({
+        target: { tabId },
+        files: [entry.file],
+        world: "ISOLATED",
+      });
+      console.log(`[WebMCP] Injected ${entry.file} into tab ${tabId}`);
+    } catch (err) {
+      console.error(`[WebMCP] Failed to inject ${entry.file}:`, err.message);
+    }
+  }
+}
+
+chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
+  if (changeInfo.status === "complete" && tab.url) {
+    injectAdapters(tabId, tab.url);
+  }
+});
+
 // ─── 启动 ──────────────────────────────────────────────────────────────────
 
-connectNativeHost();
+connectToNativeHost();

@@ -1,72 +1,79 @@
 /**
- * Chrome Native Messaging Bridge
+ * WebSocket Bridge
  *
- * Chrome Native Messaging 协议：
- * - 每条消息格式：[4字节小端序长度][JSON字节]
- * - 双向：stdin 接收扩展消息，stdout 发送消息给扩展
+ * 替代 Chrome Native Messaging，使用本地 WebSocket server 与浏览器扩展通信。
  *
- * 这个 Bridge 维护与浏览器扩展的通信，并暴露：
- * - toolRegistry: 当前所有已注册工具
- * - callTool(tabId, toolName, args): 调用指定 Tab 的工具
- * - on("tools_updated", handler): 工具列表变化事件
+ * 原因：Native Messaging 和 MCP StdioServerTransport 都依赖 stdin/stdout，
+ * 在同一进程中冲突。WebSocket 使用独立端口，与 MCP stdio 互不干扰。
+ *
+ * 架构：
+ *   Claude Desktop --[stdio MCP]--> native-host/index.js
+ *                                         |
+ *                                   ws://localhost:3711
+ *                                         |
+ *                              Chrome Extension (service worker)
  */
 
+import { WebSocketServer } from "ws";
 import { EventEmitter } from "events";
+
+const WS_PORT = 3711;
 
 export class NativeMessagingBridge extends EventEmitter {
   constructor() {
     super();
 
     /**
-     * 工具注册表：tabId -> [{ name, description, parameters }]
-     * @type {Map<number, Array<{name: string, description: string, parameters: object, tabId: number}>>}
+     * 工具注册表：tabId -> [{ name, description, parameters, tabId }]
+     * @type {Map<number, Array>}
      */
     this.toolRegistry = new Map();
 
-    /**
-     * 待响应的请求：requestId -> { resolve, reject }
-     * @type {Map<string, { resolve: Function, reject: Function }>}
-     */
+    /** @type {Map<string, { resolve: Function, reject: Function }>} */
     this._pendingRequests = new Map();
-
     this._requestCounter = 0;
 
-    // 启动 Native Messaging 读取循环
-    this._startReading();
+    /** @type {import('ws').WebSocket | null} 当前连接的扩展 */
+    this._ws = null;
+
+    this._startServer();
   }
 
-  // ─── 读取来自扩展的消息 ────────────────────────────────────────────────────
+  // ─── WebSocket Server ───────────────────────────────────────────────────────
 
-  _startReading() {
-    let buffer = Buffer.alloc(0);
+  _startServer() {
+    this._wss = new WebSocketServer({ port: WS_PORT });
 
-    process.stdin.on("data", (chunk) => {
-      buffer = Buffer.concat([buffer, chunk]);
-
-      while (buffer.length >= 4) {
-        const msgLength = buffer.readUInt32LE(0);
-
-        if (buffer.length < 4 + msgLength) break; // 消息未完整到达
-
-        const msgBuffer = buffer.slice(4, 4 + msgLength);
-        buffer = buffer.slice(4 + msgLength);
-
-        let msg;
-        try {
-          msg = JSON.parse(msgBuffer.toString("utf8"));
-        } catch (err) {
-          process.stderr.write(`[Bridge] Failed to parse message: ${err.message}\n`);
-          continue;
-        }
-
-        this._handleExtensionMessage(msg);
+    this._wss.on("connection", (ws) => {
+      // 同时只允许一个扩展连接（断开旧连接）
+      if (this._ws) {
+        process.stderr.write("[Bridge] New extension connected, closing previous\n");
+        this._ws.close();
       }
+      this._ws = ws;
+      process.stderr.write("[Bridge] Extension connected\n");
+
+      ws.on("message", (data) => {
+        let msg;
+        try { msg = JSON.parse(data.toString()); } catch { return; }
+        this._handleExtensionMessage(msg);
+      });
+
+      ws.on("close", () => {
+        if (this._ws === ws) this._ws = null;
+        process.stderr.write("[Bridge] Extension disconnected\n");
+      });
+
+      ws.on("error", (err) => {
+        process.stderr.write(`[Bridge] Extension WS error: ${err.message}\n`);
+      });
     });
 
-    process.stdin.on("end", () => {
-      process.stderr.write("[Bridge] stdin closed, extension disconnected\n");
-      process.exit(0);
+    this._wss.on("error", (err) => {
+      process.stderr.write(`[Bridge] WS server error: ${err.message}\n`);
     });
+
+    process.stderr.write(`[Bridge] WebSocket server listening on ws://localhost:${WS_PORT}\n`);
   }
 
   // ─── 处理来自扩展的消息 ────────────────────────────────────────────────────
@@ -74,10 +81,9 @@ export class NativeMessagingBridge extends EventEmitter {
   _handleExtensionMessage(msg) {
     process.stderr.write(`[Bridge] <- extension: ${JSON.stringify(msg)}\n`);
 
-    // 工具列表更新
     if (msg.type === "tools_updated") {
       const { tabId, tools } = msg;
-      if (tools.length === 0) {
+      if (!tools || tools.length === 0) {
         this.toolRegistry.delete(tabId);
       } else {
         this.toolRegistry.set(tabId, tools.map(t => ({ ...t, tabId })));
@@ -86,63 +92,47 @@ export class NativeMessagingBridge extends EventEmitter {
       return;
     }
 
-    // 响应：工具调用结果
-    if (msg.type === "call_tool_result" || msg.type === "call_tool_error") {
-      const pending = this._pendingRequests.get(msg.id);
-      if (!pending) return;
-      this._pendingRequests.delete(msg.id);
+    // 响应待处理请求
+    const pending = this._pendingRequests.get(msg.id);
+    if (!pending) return;
+    this._pendingRequests.delete(msg.id);
 
-      if (msg.type === "call_tool_result") {
-        pending.resolve(msg.result);
-      } else {
-        pending.reject(new Error(msg.error));
-      }
-      return;
-    }
-
-    // 响应：工具列表
-    if (msg.type === "list_tools_result") {
-      const pending = this._pendingRequests.get(msg.id);
-      if (!pending) return;
-      this._pendingRequests.delete(msg.id);
+    if (msg.type === "call_tool_result") {
+      pending.resolve(msg.result);
+    } else if (msg.type === "call_tool_error") {
+      pending.reject(new Error(msg.error));
+    } else if (msg.type === "list_tools_result") {
       pending.resolve(msg.tools);
-      return;
-    }
-
-    // 响应：当前活跃 Tab
-    if (msg.type === "get_active_tab_result") {
-      const pending = this._pendingRequests.get(msg.id);
-      if (!pending) return;
-      this._pendingRequests.delete(msg.id);
+    } else if (msg.type === "get_active_tab_result") {
       pending.resolve(msg.tabId);
-      return;
     }
   }
 
   // ─── 发送消息给扩展 ─────────────────────────────────────────────────────────
 
-  _sendToExtension(msg) {
-    const json = JSON.stringify(msg);
-    const bytes = Buffer.from(json, "utf8");
-    const header = Buffer.alloc(4);
-    header.writeUInt32LE(bytes.length, 0);
-    process.stdout.write(Buffer.concat([header, bytes]));
-    process.stderr.write(`[Bridge] -> extension: ${json}\n`);
+  _send(msg) {
+    if (!this._ws || this._ws.readyState !== 1 /* OPEN */) {
+      process.stderr.write("[Bridge] Cannot send: extension not connected\n");
+      return false;
+    }
+    this._ws.send(JSON.stringify(msg));
+    process.stderr.write(`[Bridge] -> extension: ${JSON.stringify(msg)}\n`);
+    return true;
   }
 
   _nextId() {
     return String(++this._requestCounter);
   }
 
-  /**
-   * 向扩展发送请求并等待响应
-   */
   _request(msg, timeout = 10000) {
     const id = this._nextId();
     return new Promise((resolve, reject) => {
       this._pendingRequests.set(id, { resolve, reject });
-      this._sendToExtension({ ...msg, id });
-
+      if (!this._send({ ...msg, id })) {
+        this._pendingRequests.delete(id);
+        reject(new Error("Extension not connected"));
+        return;
+      }
       setTimeout(() => {
         if (this._pendingRequests.has(id)) {
           this._pendingRequests.delete(id);
@@ -154,10 +144,6 @@ export class NativeMessagingBridge extends EventEmitter {
 
   // ─── 公开 API ─────────────────────────────────────────────────────────────
 
-  /**
-   * 获取所有已注册工具（合并所有 Tab）
-   * @returns {Array<{name, description, parameters, tabId}>}
-   */
   getAllTools() {
     const all = [];
     for (const tools of this.toolRegistry.values()) {
@@ -166,29 +152,10 @@ export class NativeMessagingBridge extends EventEmitter {
     return all;
   }
 
-  /**
-   * 从扩展同步最新工具列表（一般工具列表通过 tools_updated 事件维护，此方法备用）
-   */
-  async refreshTools() {
-    const tools = await this._request({ type: "list_tools" });
-    this.toolRegistry.clear();
-    for (const tool of tools) {
-      const list = this.toolRegistry.get(tool.tabId) ?? [];
-      list.push(tool);
-      this.toolRegistry.set(tool.tabId, list);
-    }
-  }
-
-  /**
-   * 获取当前活跃的 Tab ID
-   */
   async getActiveTabId() {
     return this._request({ type: "get_active_tab" });
   }
 
-  /**
-   * 调用指定 Tab 上的工具
-   */
   async callTool(tabId, toolName, args) {
     return this._request({ type: "call_tool", tabId, toolName, args });
   }

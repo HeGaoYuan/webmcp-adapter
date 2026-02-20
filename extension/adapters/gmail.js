@@ -73,9 +73,10 @@ function parseGmailEmailList() {
   return emails;
 }
 
-// ─── 适配器定义 ────────────────────────────────────────────────────────────
+// ─── 适配器注册 ────────────────────────────────────────────────────────────
+// 不使用 ES module export，由 background 通过 executeScript 注入后调用 __webmcpRegister
 
-export default {
+window.__webmcpRegister({
   name: "gmail-adapter",
   match: ["mail.google.com"],
   tools: [
@@ -239,4 +240,4 @@ export default {
       },
     },
   ],
-};
+});
