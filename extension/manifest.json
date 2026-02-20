@@ -1,0 +1,42 @@
+{
+  "manifest_version": 3,
+  "name": "WebMCP Adapter",
+  "version": "0.1.0",
+  "description": "Community-driven WebMCP adapter: exposes website tools to AI agents via MCP",
+
+  "permissions": [
+    "tabs",
+    "activeTab",
+    "scripting",
+    "nativeMessaging",
+    "storage"
+  ],
+
+  "host_permissions": [
+    "<all_urls>"
+  ],
+
+  "background": {
+    "service_worker": "background/service-worker.js",
+    "type": "module"
+  },
+
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["content/injector.js"],
+      "run_at": "document_idle"
+    }
+  ],
+
+  "action": {
+    "default_title": "WebMCP Adapter"
+  },
+
+  "web_accessible_resources": [
+    {
+      "resources": ["adapters/*.js"],
+      "matches": ["<all_urls>"]
+    }
+  ]
+}
