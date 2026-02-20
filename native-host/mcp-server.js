@@ -29,7 +29,9 @@ export class McpServer {
       },
       {
         capabilities: {
-          tools: {},
+          tools: {
+            listChanged: true,  // 声明支持工具列表变更通知
+          },
         },
       }
     );
@@ -85,10 +87,18 @@ export class McpServer {
       };
     });
 
-    // 工具列表更新时通知客户端（如果客户端支持）
-    this.bridge.on("tools_updated", () => {
-      // MCP SDK 会自动处理 list_changed 通知（如果配置了）
-      process.stderr.write("[MCP] Tool registry updated\n");
+    // 工具列表更新时通知 Claude Desktop 重新查询
+    this.bridge.on("tools_updated", async () => {
+      process.stderr.write("[MCP] Tool registry updated, sending list_changed notification\n");
+      try {
+        await this.server.notification({
+          method: "notifications/tools/list_changed",
+          params: {},
+        });
+      } catch (err) {
+        // 客户端可能尚未连接，忽略
+        process.stderr.write(`[MCP] Failed to send list_changed: ${err.message}\n`);
+      }
     });
   }
 
