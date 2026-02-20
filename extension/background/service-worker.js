@@ -58,9 +58,9 @@ function connectToNativeHost() {
   });
 
   ws.addEventListener("close", () => {
-    console.warn("[WebMCP] Native host disconnected, reconnecting in 5s...");
+    console.warn("[WebMCP] Native host disconnected, reconnecting in 1s...");
     ws = null;
-    setTimeout(connectToNativeHost, 5000);
+    setTimeout(connectToNativeHost, 1000);
   });
 
   ws.addEventListener("error", () => {
@@ -194,5 +194,19 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
 });
 
 // ─── 启动 ──────────────────────────────────────────────────────────────────
+
+// 用 alarm 每25秒唤醒一次 Service Worker，防止 Chrome 将其挂起导致 WebSocket 断开
+// Chrome MV3 Service Worker 默认30秒无活动后休眠，alarms 是官方推荐的保活方案
+chrome.alarms.create("keepAlive", { periodInMinutes: 0.4 }); // 约24秒
+
+chrome.alarms.onAlarm.addListener((alarm) => {
+  if (alarm.name === "keepAlive") {
+    // 检查 WebSocket 是否还活着，断了就重连
+    if (!ws || ws.readyState === WebSocket.CLOSED || ws.readyState === WebSocket.CLOSING) {
+      console.log("[WebMCP] keepAlive: reconnecting...");
+      connectToNativeHost();
+    }
+  }
+});
 
 connectToNativeHost();
