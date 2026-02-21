@@ -18,6 +18,9 @@ const handlers = new Map();
 /** 已注册工具的元数据列表（不含 handler） */
 const toolDefs = [];
 
+/** 已注册的工具名集合，用于去重 */
+const registeredToolNames = new Set();
+
 // ─── 注册入口（供 adapter 文件调用） ──────────────────────────────────────────
 
 /**
@@ -33,16 +36,23 @@ window.__webmcpRegister = function (adapter) {
       continue;
     }
 
+    // 去重：如果工具已注册，跳过
+    if (registeredToolNames.has(tool.name)) {
+      console.log(`[WebMCP] Tool "${tool.name}" already registered, skipping duplicate`);
+      continue;
+    }
+
     handlers.set(tool.name, tool.handler);
     toolDefs.push({
       name: tool.name,
       description: tool.description,
       parameters: tool.parameters ?? {},
     });
+    registeredToolNames.add(tool.name);
     registered++;
   }
 
-  console.log(`[WebMCP] Adapter "${adapter.name}" registered ${registered} tools`);
+  console.log(`[WebMCP] Adapter "${adapter.name}" registered ${registered} tools (${toolDefs.length} total)`);
 
   // 每次有新工具注册后，把完整列表上报给 background
   chrome.runtime.sendMessage({ type: "register_tools", tools: toolDefs });
