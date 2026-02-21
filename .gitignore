@@ -1,1 +1,15 @@
 node_modules/
+
+# 日志文件
+*.log
+native-host.log
+
+# PID文件
+.webmcp-native-host.pid
+
+# macOS
+.DS_Store
+
+# IDE
+.vscode/
+.idea/
