@@ -23,17 +23,35 @@ const toolRegistry = new Map();
 
 // ─── WebSocket 连接 ──────────────────────────────────────────────────────────
 
+let isConnecting = false;
+
 function connectToNativeHost() {
+  // 防止重复连接
+  if (ws && (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)) {
+    console.log("[WebMCP] Already connected or connecting, skipping");
+    return;
+  }
+  
+  if (isConnecting) {
+    console.log("[WebMCP] Connection attempt already in progress");
+    return;
+  }
+  
+  isConnecting = true;
+  
   try {
+    console.log("[WebMCP] Attempting to connect to native host...");
     ws = new WebSocket(WS_URL);
   } catch (err) {
     console.warn("[WebMCP] Failed to create WebSocket:", err.message);
+    isConnecting = false;
     setTimeout(connectToNativeHost, 5000);
     return;
   }
 
   ws.addEventListener("open", () => {
     console.log("[WebMCP] Connected to native host");
+    isConnecting = false;
 
     // 先把内存中还存着的工具同步过去（正常情况）
     for (const [tabId, tabTools] of toolRegistry.entries()) {
@@ -57,13 +75,16 @@ function connectToNativeHost() {
     await handleNativeMessage(msg);
   });
 
-  ws.addEventListener("close", () => {
-    console.warn("[WebMCP] Native host disconnected, reconnecting in 1s...");
+  ws.addEventListener("close", (event) => {
+    console.warn(`[WebMCP] Native host disconnected (code: ${event.code}, reason: ${event.reason}), reconnecting in 1s...`);
+    isConnecting = false;
     ws = null;
     setTimeout(connectToNativeHost, 1000);
   });
 
-  ws.addEventListener("error", () => {
+  ws.addEventListener("error", (event) => {
+    console.error("[WebMCP] WebSocket error:", event);
+    isConnecting = false;
     // close 事件会跟着触发，在那里重连
   });
 }

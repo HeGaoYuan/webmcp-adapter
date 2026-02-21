@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>WebMCP Connection Test</title>
+    <style>
+        body {
+            font-family: monospace;
+            padding: 20px;
+            max-width: 800px;
+            margin: 0 auto;
+        }
+        .status {
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 4px;
+        }
+        .connected { background: #d4edda; color: #155724; }
+        .disconnected { background: #f8d7da; color: #721c24; }
+        .connecting { background: #fff3cd; color: #856404; }
+        #log {
+            background: #f5f5f5;
+            padding: 10px;
+            height: 400px;
+            overflow-y: auto;
+            border: 1px solid #ddd;
+            margin-top: 20px;
+        }
+        .log-entry {
+            margin: 2px 0;
+            padding: 2px 5px;
+        }
+        .log-info { color: #0066cc; }
+        .log-error { color: #cc0000; }
+        .log-success { color: #00cc00; }
+        button {
+            padding: 10px 20px;
+            margin: 5px;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+    <h1>WebMCP Connection Test</h1>
+    
+    <div id="status" class="status disconnected">
+        Status: Disconnected
+    </div>
+    
+    <div>
+        <button onclick="connect()">Connect</button>
+        <button onclick="disconnect()">Disconnect</button>
+        <button onclick="sendTestMessage()">Send Test Message</button>
+        <button onclick="clearLog()">Clear Log</button>
+    </div>
+    
+    <div id="log"></div>
+    
+    <script>
+        const WS_URL = "ws://localhost:3711";
+        let ws = null;
+        
+        function log(message, type = 'info') {
+            const entry = document.createElement('div');
+            entry.className = `log-entry log-${type}`;
+            entry.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+            document.getElementById('log').appendChild(entry);
+            document.getElementById('log').scrollTop = document.getElementById('log').scrollHeight;
+        }
+        
+        function updateStatus(status, className) {
+            const statusEl = document.getElementById('status');
+            statusEl.textContent = `Status: ${status}`;
+            statusEl.className = `status ${className}`;
+        }
+        
+        function connect() {
+            if (ws && (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)) {
+                log('Already connected or connecting', 'info');
+                return;
+            }
+            
+            log('Connecting to ' + WS_URL, 'info');
+            updateStatus('Connecting...', 'connecting');
+            
+            try {
+                ws = new WebSocket(WS_URL);
+                
+                ws.onopen = () => {
+                    log('Connected successfully', 'success');
+                    updateStatus('Connected', 'connected');
+                };
+                
+                ws.onmessage = (event) => {
+                    log('Received: ' + event.data, 'info');
+                };
+                
+                ws.onclose = (event) => {
+                    log(`Connection closed (code: ${event.code}, reason: ${event.reason || 'none'})`, 'error');
+                    updateStatus('Disconnected', 'disconnected');
+                    ws = null;
+                };
+                
+                ws.onerror = (event) => {
+                    log('WebSocket error occurred', 'error');
+                };
+            } catch (err) {
+                log('Failed to create WebSocket: ' + err.message, 'error');
+                updateStatus('Error', 'disconnected');
+            }
+        }
+        
+        function disconnect() {
+            if (ws) {
+                log('Disconnecting...', 'info');
+                ws.close();
+            } else {
+                log('Not connected', 'info');
+            }
+        }
+        
+        function sendTestMessage() {
+            if (!ws || ws.readyState !== WebSocket.OPEN) {
+                log('Cannot send: not connected', 'error');
+                return;
+            }
+            
+            const msg = {
+                type: 'tools_updated',
+                tabId: 999999,
+                tools: [
+                    {
+                        name: 'test_tool',
+                        description: 'A test tool',
+                        parameters: { type: 'object', properties: {} }
+                    }
+                ]
+            };
+            
+            log('Sending: ' + JSON.stringify(msg), 'info');
+            ws.send(JSON.stringify(msg));
+        }
+        
+        function clearLog() {
+            document.getElementById('log').innerHTML = '';
+        }
+        
+        // Auto-connect on load
+        window.onload = () => {
+            log('Page loaded', 'info');
+            setTimeout(connect, 500);
+        };
+    </script>
+</body>
+</html>

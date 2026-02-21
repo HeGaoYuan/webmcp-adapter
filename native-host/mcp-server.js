@@ -21,6 +21,7 @@ export class McpServer {
    */
   constructor(bridge) {
     this.bridge = bridge;
+    this._isConnected = false;
 
     this.server = new Server(
       {
@@ -42,19 +43,39 @@ export class McpServer {
   _setupHandlers() {
     // ── list_tools ─────────────────────────────────────────────────────────
     this.server.setRequestHandler(ListToolsRequestSchema, async () => {
-      // 如果工具列表为空，等待扩展连接（最多 5 秒）
-      // 解决 Claude Desktop 在扩展连上前就查询工具列表的时序问题
+      // 如果工具列表为空，等待扩展连接和工具注册
+      // 等待最多 15 秒，给用户足够时间打开网站
       if (this.bridge.getAllTools().length === 0) {
+        process.stderr.write("[MCP] Tool list empty, waiting up to 15s for tools to register...\n");
+        process.stderr.write("[MCP] Tip: Open Gmail or 163mail in Chrome to register tools\n");
+        
         await new Promise(resolve => {
-          const timer = setTimeout(resolve, 5000);
-          this.bridge.once("tools_updated", () => {
-            clearTimeout(timer);
-            resolve();
-          });
+          let waitTime = 0;
+          const checkInterval = 1000; // 每秒检查一次
+          const maxWait = 15000; // 最多等待15秒
+          
+          const timer = setInterval(() => {
+            waitTime += checkInterval;
+            const toolCount = this.bridge.getAllTools().length;
+            
+            if (toolCount > 0) {
+              clearInterval(timer);
+              process.stderr.write(`[MCP] Tools registered! Found ${toolCount} tools after ${waitTime/1000}s\n`);
+              resolve();
+            } else if (waitTime >= maxWait) {
+              clearInterval(timer);
+              process.stderr.write("[MCP] Wait timeout after 15s, returning empty tool list\n");
+              process.stderr.write("[MCP] Make sure you have Gmail or 163mail open in Chrome\n");
+              resolve();
+            } else {
+              process.stderr.write(`[MCP] Still waiting... (${waitTime/1000}s elapsed)\n`);
+            }
+          }, checkInterval);
         });
       }
 
       const tools = this.bridge.getAllTools();
+      process.stderr.write(`[MCP] Returning ${tools.length} tools\n`);
 
       return {
         tools: tools.map(tool => ({
@@ -102,11 +123,19 @@ export class McpServer {
     // 工具列表更新时通知 Claude Desktop 重新查询
     this.bridge.on("tools_updated", async () => {
       process.stderr.write("[MCP] Tool registry updated, sending list_changed notification\n");
+      
+      // 等待一小段时间确保 MCP 连接已建立
+      await new Promise(resolve => setTimeout(resolve, 100));
+      
       try {
-        await this.server.notification({
-          method: "notifications/tools/list_changed",
-          params: {},
-        });
+        if (this._isConnected) {
+          await this.server.notification({
+            method: "notifications/tools/list_changed",
+            params: {},
+          });
+        } else {
+          process.stderr.write("[MCP] Skipping list_changed: MCP not connected yet\n");
+        }
       } catch (err) {
         // 客户端可能尚未连接，忽略
         process.stderr.write(`[MCP] Failed to send list_changed: ${err.message}\n`);
@@ -144,6 +173,7 @@ export class McpServer {
   async start() {
     const transport = new StdioServerTransport();
     await this.server.connect(transport);
+    this._isConnected = true;
     process.stderr.write("[MCP] WebMCP Adapter MCP Server started (stdio)\n");
   }
 }

@@ -33,8 +33,11 @@ export class NativeMessagingBridge extends EventEmitter {
     this._pendingRequests = new Map();
     this._requestCounter = 0;
 
-    /** @type {import('ws').WebSocket | null} 当前连接的扩展 */
-    this._ws = null;
+    /** @type {Set<import('ws').WebSocket>} 所有连接的客户端 */
+    this._clients = new Set();
+    
+    /** @type {import('ws').WebSocket | null} Chrome扩展的连接 */
+    this._extensionWs = null;
 
     this._startServer();
   }
@@ -42,59 +45,128 @@ export class NativeMessagingBridge extends EventEmitter {
   // ─── WebSocket Server ───────────────────────────────────────────────────────
 
   _startServer() {
-    this._wss = new WebSocketServer({ port: WS_PORT });
+    try {
+      this._wss = new WebSocketServer({ port: WS_PORT });
+      
+      this._wss.on("connection", (ws) => {
+        const connectionId = Date.now();
+        process.stderr.write(`[Bridge] New connection #${connectionId}\n`);
+        
+        // 添加到客户端集合
+        this._clients.add(ws);
+        
+        ws.on("message", (data) => {
+          try {
+            let msg;
+            try { msg = JSON.parse(data.toString()); } catch (e) { 
+              process.stderr.write(`[Bridge] Failed to parse message: ${e.message}\n`);
+              return; 
+            }
+            
+            // 如果是tools_updated消息，说明这是Chrome扩展
+            if (msg.type === 'tools_updated') {
+              this._extensionWs = ws;
+              process.stderr.write(`[Bridge] Identified Chrome extension connection #${connectionId}\n`);
+            }
+            
+            // 根据消息类型判断来源并处理
+            if (msg.type === 'tools_updated' || msg.type === 'call_tool_result' || msg.type === 'call_tool_error' || msg.type === 'get_active_tab_result') {
+              // 来自Chrome扩展的消息
+              this._handleExtensionMessage(msg);
+            } else if (msg.type === 'call_tool' || msg.type === 'get_active_tab') {
+              // 来自MCP进程的请求，需要转发给Chrome扩展
+              this._handleMcpRequest(msg);
+            } else {
+              process.stderr.write(`[Bridge] Unknown message type: ${msg.type}\n`);
+            }
+          } catch (err) {
+            process.stderr.write(`[Bridge] Error handling message: ${err.message}\n${err.stack}\n`);
+          }
+        });
 
-    this._wss.on("connection", (ws) => {
-      // 同时只允许一个扩展连接（断开旧连接）
-      if (this._ws) {
-        process.stderr.write("[Bridge] New extension connected, closing previous\n");
-        this._ws.close();
+        ws.on("close", () => {
+          this._clients.delete(ws);
+          if (this._extensionWs === ws) {
+            this._extensionWs = null;
+            process.stderr.write(`[Bridge] Chrome extension disconnected #${connectionId}\n`);
+          } else {
+            process.stderr.write(`[Bridge] Connection #${connectionId} closed\n`);
+          }
+        });
+
+        ws.on("error", (err) => {
+          process.stderr.write(`[Bridge] Connection #${connectionId} error: ${err.message}\n`);
+        });
+        
+        // 如果是新连接，发送当前工具列表
+        const allTools = this.getAllTools();
+        if (allTools.length > 0) {
+          ws.send(JSON.stringify({
+            type: 'tools_snapshot',
+            tools: allTools
+          }));
+        }
+      });
+
+      this._wss.on("error", (err) => {
+        if (err.code === 'EADDRINUSE') {
+          process.stderr.write(`[Bridge] FATAL: Port ${WS_PORT} is already in use\n`);
+          process.stderr.write(`[Bridge] Another instance may be running. Please stop it first.\n`);
+          process.exit(1);
+        }
+        process.stderr.write(`[Bridge] WS server error: ${err.message}\n${err.stack}\n`);
+      });
+
+      process.stderr.write(`[Bridge] WebSocket server listening on ws://localhost:${WS_PORT}\n`);
+    } catch (err) {
+      if (err.code === 'EADDRINUSE') {
+        process.stderr.write(`[Bridge] FATAL: Port ${WS_PORT} is already in use\n`);
+        process.stderr.write(`[Bridge] Another instance may be running. Please stop it first.\n`);
+        process.exit(1);
       }
-      this._ws = ws;
-      process.stderr.write("[Bridge] Extension connected\n");
-
-      ws.on("message", (data) => {
-        let msg;
-        try { msg = JSON.parse(data.toString()); } catch { return; }
-        this._handleExtensionMessage(msg);
-      });
-
-      ws.on("close", () => {
-        if (this._ws === ws) this._ws = null;
-        process.stderr.write("[Bridge] Extension disconnected\n");
-      });
-
-      ws.on("error", (err) => {
-        process.stderr.write(`[Bridge] Extension WS error: ${err.message}\n`);
-      });
+      process.stderr.write(`[Bridge] Failed to start WebSocket server: ${err.message}\n${err.stack}\n`);
+      throw err;
+    }
+  }
+  
+  // 广播消息给所有连接的客户端
+  _broadcast(msg) {
+    if (!this._wss) return;
+    
+    const msgStr = JSON.stringify(msg);
+    this._wss.clients.forEach(client => {
+      if (client.readyState === 1 /* OPEN */) {
+        client.send(msgStr);
+      }
     });
-
-    this._wss.on("error", (err) => {
-      process.stderr.write(`[Bridge] WS server error: ${err.message}\n`);
-    });
-
-    process.stderr.write(`[Bridge] WebSocket server listening on ws://localhost:${WS_PORT}\n`);
   }
 
   // ─── 处理来自扩展的消息 ────────────────────────────────────────────────────
 
   _handleExtensionMessage(msg) {
-    process.stderr.write(`[Bridge] <- extension: ${JSON.stringify(msg)}\n`);
+    process.stderr.write(`[Bridge] <- extension: ${JSON.stringify(msg).substring(0, 200)}\n`);
 
     if (msg.type === "tools_updated") {
       const { tabId, tools } = msg;
       if (!tools || tools.length === 0) {
         this.toolRegistry.delete(tabId);
+        process.stderr.write(`[Bridge] Removed tools for tab ${tabId}\n`);
       } else {
         this.toolRegistry.set(tabId, tools.map(t => ({ ...t, tabId })));
+        process.stderr.write(`[Bridge] Registered ${tools.length} tools for tab ${tabId}\n`);
       }
       this.emit("tools_updated");
+      // 广播给所有连接的客户端（包括MCP进程）
+      this._broadcast(msg);
       return;
     }
 
-    // 响应待处理请求
+    // 响应待处理请求（来自MCP进程的call_tool请求）
     const pending = this._pendingRequests.get(msg.id);
-    if (!pending) return;
+    if (!pending) {
+      process.stderr.write(`[Bridge] No pending request for id ${msg.id}\n`);
+      return;
+    }
     this._pendingRequests.delete(msg.id);
 
     if (msg.type === "call_tool_result") {
@@ -107,16 +179,44 @@ export class NativeMessagingBridge extends EventEmitter {
       pending.resolve(msg.tabId);
     }
   }
+  
+  // ─── 处理来自MCP进程的请求 ─────────────────────────────────────────────────
+  
+  async _handleMcpRequest(msg) {
+    process.stderr.write(`[Bridge] <- MCP: ${JSON.stringify(msg).substring(0, 200)}\n`);
+    
+    // 将请求转发给Chrome扩展，并等待响应
+    if (msg.type === 'call_tool') {
+      const { tabId, toolName, args, id } = msg;
+      process.stderr.write(`[Bridge] Forwarding call_tool to extension: ${toolName}\n`);
+      
+      try {
+        const result = await this.callTool(tabId, toolName, args);
+        // 将结果发送回MCP进程
+        this._broadcast({ type: 'call_tool_result', id, result });
+      } catch (err) {
+        // 将错误发送回MCP进程
+        this._broadcast({ type: 'call_tool_error', id, error: err.message });
+      }
+    } else if (msg.type === 'get_active_tab') {
+      try {
+        const tabId = await this.getActiveTabId();
+        this._broadcast({ type: 'get_active_tab_result', id: msg.id, tabId });
+      } catch (err) {
+        this._broadcast({ type: 'get_active_tab_error', id: msg.id, error: err.message });
+      }
+    }
+  }
 
-  // ─── 发送消息给扩展 ─────────────────────────────────────────────────────────
+  // ─── 发送消息给扩展 ─────────────────────────────────────────────────────────  // ─── 发送消息给扩展 ─────────────────────────────────────────────────────────
 
   _send(msg) {
-    if (!this._ws || this._ws.readyState !== 1 /* OPEN */) {
-      process.stderr.write("[Bridge] Cannot send: extension not connected\n");
+    if (!this._extensionWs || this._extensionWs.readyState !== 1 /* OPEN */) {
+      process.stderr.write("[Bridge] Cannot send: Chrome extension not connected\n");
       return false;
     }
-    this._ws.send(JSON.stringify(msg));
-    process.stderr.write(`[Bridge] -> extension: ${JSON.stringify(msg)}\n`);
+    this._extensionWs.send(JSON.stringify(msg));
+    process.stderr.write(`[Bridge] -> extension: ${JSON.stringify(msg).substring(0, 200)}\n`);
     return true;
   }
 
