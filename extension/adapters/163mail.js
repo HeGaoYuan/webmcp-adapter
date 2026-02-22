@@ -176,14 +176,39 @@ async function openEmail(emailId) {
       };
     }
 
+    // 获取邮件主题，用于后续验证
+    const subjectInList = mailElement.querySelector('.lh0')?.textContent?.trim() || '';
+
     // 点击邮件
     mailElement.click();
 
-    // 等待邮件详情加载
-    await sleep(2000);
+    // 等待邮件详情模块出现并加载完成
+    // 策略：等待详情模块出现，并且主题匹配
+    let detail = null;
+    let attempts = 0;
+    const maxAttempts = 15; // 最多尝试15次（7.5秒）
+    
+    while (attempts < maxAttempts) {
+      await sleep(500);
+      attempts++;
+      
+      // 尝试解析邮件详情
+      const tempDetail = parseEmailDetail();
+      
+      // 检查是否成功解析且内容已更新
+      if (!tempDetail.error && tempDetail.subject) {
+        // 如果主题匹配（或列表中没有主题），认为加载完成
+        if (!subjectInList || tempDetail.subject.includes(subjectInList) || subjectInList.includes(tempDetail.subject)) {
+          detail = tempDetail;
+          break;
+        }
+      }
+    }
 
-    // 解析邮件详情
-    const detail = parseEmailDetail();
+    if (!detail) {
+      // 超时后再尝试一次
+      detail = parseEmailDetail();
+    }
 
     if (detail.error) {
       return {
@@ -198,6 +223,7 @@ async function openEmail(emailId) {
       status: "opened",
       emailId,
       detail,
+      loadTime: `${attempts * 500}ms`
     };
   } catch (error) {
     return {
@@ -324,6 +350,11 @@ function parseEmailDetail() {
     // 解析主题
     const subjectEl = readModule.querySelector('h1[id*="h1Subject"]');
     const subject = subjectEl?.textContent?.trim() ?? "";
+    
+    // 如果主题为空，说明内容还没加载
+    if (!subject) {
+      return { error: "邮件主题为空，内容可能还在加载中" };
+    }
 
     // 从文本中提取发件人、收件人、时间
     const fullText = readModule.textContent;

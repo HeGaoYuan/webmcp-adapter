@@ -110,6 +110,15 @@ async function handleNativeMessage(msg) {
   } else if (msg.type === "get_active_tab") {
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
     sendToNative({ type: "get_active_tab_result", id: msg.id, tabId: tab?.id ?? null });
+
+  } else if (msg.type === "open_tab") {
+    // 打开新标签页
+    try {
+      const tab = await chrome.tabs.create({ url: msg.url, active: true });
+      sendToNative({ type: "call_tool_result", id: msg.id, result: { tabId: tab.id, url: tab.url } });
+    } catch (err) {
+      sendToNative({ type: "call_tool_error", id: msg.id, error: err.message });
+    }
   }
 }
 

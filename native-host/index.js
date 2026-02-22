@@ -166,8 +166,10 @@ class RemoteBridge {
       const { tabId, tools } = msg;
       if (!tools || tools.length === 0) {
         this.toolRegistry.delete(tabId);
+        process.stderr.write(`[RemoteBridge] Removed tools for tab ${tabId}\n`);
       } else {
         this.toolRegistry.set(tabId, tools.map(t => ({ ...t, tabId })));
+        process.stderr.write(`[RemoteBridge] Registered ${tools.length} tools for tab ${tabId}\n`);
       }
       this._emit('tools_updated');
       return;
@@ -199,6 +201,8 @@ class RemoteBridge {
       pending.reject(new Error(msg.error));
     } else if (msg.type === 'get_active_tab_result') {
       pending.resolve(msg.tabId);
+    } else if (msg.type === 'get_active_tab_error') {
+      pending.reject(new Error(msg.error));
     }
   }
   
@@ -237,6 +241,10 @@ class RemoteBridge {
   
   async callTool(tabId, toolName, args) {
     return this._request({ type: 'call_tool', tabId, toolName, args });
+  }
+  
+  async openBrowser(url) {
+    return this._request({ type: 'open_browser', url });
   }
   
   on(event, listener) {

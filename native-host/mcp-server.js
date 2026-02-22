@@ -43,81 +43,112 @@ export class McpServer {
   _setupHandlers() {
     // ── list_tools ─────────────────────────────────────────────────────────
     this.server.setRequestHandler(ListToolsRequestSchema, async () => {
-      // 如果工具列表为空，等待扩展连接和工具注册
-      // 等待最多 15 秒，给用户足够时间打开网站
-      if (this.bridge.getAllTools().length === 0) {
-        process.stderr.write("[MCP] Tool list empty, waiting up to 15s for tools to register...\n");
-        process.stderr.write("[MCP] Tip: Open Gmail or 163mail in Chrome to register tools\n");
-        
-        await new Promise(resolve => {
-          let waitTime = 0;
-          const checkInterval = 1000; // 每秒检查一次
-          const maxWait = 15000; // 最多等待15秒
-          
-          const timer = setInterval(() => {
-            waitTime += checkInterval;
-            const toolCount = this.bridge.getAllTools().length;
-            
-            if (toolCount > 0) {
-              clearInterval(timer);
-              process.stderr.write(`[MCP] Tools registered! Found ${toolCount} tools after ${waitTime/1000}s\n`);
-              resolve();
-            } else if (waitTime >= maxWait) {
-              clearInterval(timer);
-              process.stderr.write("[MCP] Wait timeout after 15s, returning empty tool list\n");
-              process.stderr.write("[MCP] Make sure you have Gmail or 163mail open in Chrome\n");
-              resolve();
-            } else {
-              process.stderr.write(`[MCP] Still waiting... (${waitTime/1000}s elapsed)\n`);
-            }
-          }, checkInterval);
-        });
+      const tools = this.bridge.getAllTools();
+
+      // 添加系统级工具（浏览器控制）
+      const systemTools = [
+        {
+          name: "open_browser",
+          description: "打开Chrome浏览器并访问指定网址。如果Chrome已打开，会在新标签页中打开。支持的网站：mail.163.com, mail.google.com",
+          inputSchema: {
+            type: "object",
+            properties: {
+              url: {
+                type: "string",
+                description: "要访问的完整URL，例如 https://mail.163.com 或 https://mail.google.com"
+              }
+            },
+            required: ["url"]
+          }
+        }
+      ];
+
+      // 去重：相同名称的工具只保留一个（使用最新注册的）
+      const uniqueTools = new Map();
+      for (const tool of tools) {
+        uniqueTools.set(tool.name, tool);
       }
 
-      const tools = this.bridge.getAllTools();
-      process.stderr.write(`[MCP] Returning ${tools.length} tools\n`);
-
-      return {
-        tools: tools.map(tool => ({
-          name: this._qualifyToolName(tool.name, tool.tabId),
+      const allTools = [
+        ...systemTools,
+        ...Array.from(uniqueTools.values()).map(tool => ({
+          name: tool.name,  // 不添加tabId后缀
           description: tool.description,
           inputSchema: tool.parameters ?? { type: "object", properties: {} },
-        })),
+        }))
+      ];
+
+      process.stderr.write(`[MCP] Returning ${allTools.length} tools (${systemTools.length} system + ${uniqueTools.size} web)\n`);
+
+      return {
+        tools: allTools,
       };
     });
 
     // ── call_tool ──────────────────────────────────────────────────────────
     this.server.setRequestHandler(CallToolRequestSchema, async (request) => {
-      const { name: qualifiedName, arguments: args } = request.params;
+      const { name: toolName, arguments: args } = request.params;
 
-      // 解析 tabId 和真实 toolName
-      const { tabId, toolName } = this._parseQualifiedName(qualifiedName);
-
-      // 如果没有指定 tabId，使用当前活跃 Tab
-      const resolvedTabId = tabId ?? await this.bridge.getActiveTabId();
-
-      if (resolvedTabId == null) {
-        return {
-          content: [{ type: "text", text: "Error: No browser tab found with WebMCP tools registered." }],
-          isError: true,
-        };
+      // 处理系统级工具
+      if (toolName === "open_browser") {
+        try {
+          const result = await this.bridge.openBrowser(args.url);
+          const text = typeof result === "string" ? result : JSON.stringify(result, null, 2);
+          return {
+            content: [{ type: "text", text }],
+          };
+        } catch (err) {
+          return {
+            content: [{ type: "text", text: `Error: ${err.message}` }],
+            isError: true,
+          };
+        }
       }
 
-      let result;
+      // 处理网站工具：自动使用活跃tab
       try {
-        result = await this.bridge.callTool(resolvedTabId, toolName, args ?? {});
+        // 获取当前活跃的tab
+        const activeTabId = await this.bridge.getActiveTabId();
+        
+        if (activeTabId == null) {
+          return {
+            content: [{ 
+              type: "text", 
+              text: "Error: 没有找到活跃的浏览器标签页。请确保Chrome已打开并且有邮箱页面。" 
+            }],
+            isError: true,
+          };
+        }
+
+        // 检查活跃tab是否有工具注册
+        const allTools = this.bridge.getAllTools();
+        const tabTools = allTools.filter(t => t.tabId === activeTabId);
+        const hasTool = tabTools.some(t => t.name === toolName);
+        
+        if (!hasTool) {
+          return {
+            content: [{ 
+              type: "text", 
+              text: `Error: 当前页面不支持 "${toolName}" 操作。请确保当前标签页是邮箱页面（163mail或Gmail）。` 
+            }],
+            isError: true,
+          };
+        }
+
+        // 调用工具
+        process.stderr.write(`[MCP] Calling tool "${toolName}" on active tab ${activeTabId}\n`);
+        const result = await this.bridge.callTool(activeTabId, toolName, args ?? {});
+        
+        const text = typeof result === "string" ? result : JSON.stringify(result, null, 2);
+        return {
+          content: [{ type: "text", text }],
+        };
       } catch (err) {
         return {
           content: [{ type: "text", text: `Error: ${err.message}` }],
           isError: true,
         };
       }
-
-      // 将结果序列化为 MCP 内容块
-      const text = typeof result === "string" ? result : JSON.stringify(result, null, 2);
-      return {
-        content: [{ type: "text", text }],
-      };
     });
 
     // 工具列表更新时通知 Claude Desktop 重新查询
@@ -141,33 +172,6 @@ export class McpServer {
         process.stderr.write(`[MCP] Failed to send list_changed: ${err.message}\n`);
       }
     });
-  }
-
-  /**
-   * 把工具名加上 tabId 前缀，避免多个 Tab 同名工具冲突
-   * 格式：toolName__tab123  (如果只有一个Tab注册了该工具，则不加前缀)
-   */
-  _qualifyToolName(toolName, tabId) {
-    const allTools = this.bridge.getAllTools();
-    const sameName = allTools.filter(t => t.name === toolName);
-    if (sameName.length <= 1) {
-      return toolName; // 不需要区分
-    }
-    return `${toolName}__tab${tabId}`;
-  }
-
-  /**
-   * 解析带 tabId 后缀的工具名
-   */
-  _parseQualifiedName(qualifiedName) {
-    const match = qualifiedName.match(/^(.+)__tab(\d+)$/);
-    if (match) {
-      return { toolName: match[1], tabId: Number(match[2]) };
-    }
-
-    // 没有后缀，找第一个匹配的工具
-    const tool = this.bridge.getAllTools().find(t => t.name === qualifiedName);
-    return { toolName: qualifiedName, tabId: tool?.tabId ?? null };
   }
 
   async start() {

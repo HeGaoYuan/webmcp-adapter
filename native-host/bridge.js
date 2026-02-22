@@ -16,7 +16,10 @@
 
 import { WebSocketServer } from "ws";
 import { EventEmitter } from "events";
+import { exec } from "child_process";
+import { promisify } from "util";
 
+const execAsync = promisify(exec);
 const WS_PORT = 3711;
 
 export class NativeMessagingBridge extends EventEmitter {
@@ -73,8 +76,8 @@ export class NativeMessagingBridge extends EventEmitter {
             if (msg.type === 'tools_updated' || msg.type === 'call_tool_result' || msg.type === 'call_tool_error' || msg.type === 'get_active_tab_result') {
               // 来自Chrome扩展的消息
               this._handleExtensionMessage(msg);
-            } else if (msg.type === 'call_tool' || msg.type === 'get_active_tab') {
-              // 来自MCP进程的请求，需要转发给Chrome扩展
+            } else if (msg.type === 'call_tool' || msg.type === 'get_active_tab' || msg.type === 'open_browser') {
+              // 来自MCP进程的请求，需要转发给Chrome扩展或处理系统命令
               this._handleMcpRequest(msg);
             } else {
               process.stderr.write(`[Bridge] Unknown message type: ${msg.type}\n`);
@@ -205,6 +208,13 @@ export class NativeMessagingBridge extends EventEmitter {
       } catch (err) {
         this._broadcast({ type: 'get_active_tab_error', id: msg.id, error: err.message });
       }
+    } else if (msg.type === 'open_browser') {
+      try {
+        const result = await this.openBrowser(msg.url);
+        this._broadcast({ type: 'call_tool_result', id: msg.id, result });
+      } catch (err) {
+        this._broadcast({ type: 'call_tool_error', id: msg.id, error: err.message });
+      }
     }
   }
 
@@ -258,5 +268,66 @@ export class NativeMessagingBridge extends EventEmitter {
 
   async callTool(tabId, toolName, args) {
     return this._request({ type: "call_tool", tabId, toolName, args });
+  }
+
+  // ─── 浏览器控制 ─────────────────────────────────────────────────────────────
+
+  /**
+   * 检查Chrome扩展是否已连接
+   */
+  isExtensionConnected() {
+    return this._extensionWs && this._extensionWs.readyState === 1;
+  }
+
+  /**
+   * 打开浏览器并访问指定URL
+   * 优先使用Chrome扩展API（如果已连接），否则使用系统命令
+   */
+  async openBrowser(url) {
+    // 方案1：如果Chrome扩展已连接，使用扩展API打开新tab
+    if (this.isExtensionConnected()) {
+      try {
+        process.stderr.write(`[Bridge] Opening URL via Chrome extension: ${url}\n`);
+        const result = await this._request({ type: "open_tab", url }, 5000);
+        return { 
+          success: true, 
+          method: "extension",
+          message: `已在Chrome中打开新标签页: ${url}`,
+          tabId: result.tabId
+        };
+      } catch (err) {
+        process.stderr.write(`[Bridge] Failed to open via extension: ${err.message}\n`);
+        // 失败则继续尝试系统命令
+      }
+    }
+
+    // 方案2：使用系统命令打开Chrome
+    process.stderr.write(`[Bridge] Opening URL via system command: ${url}\n`);
+    
+    const platform = process.platform;
+    let command;
+
+    if (platform === "darwin") {
+      // macOS
+      command = `open -a "Google Chrome" "${url}"`;
+    } else if (platform === "win32") {
+      // Windows
+      command = `start chrome "${url}"`;
+    } else {
+      // Linux
+      command = `google-chrome "${url}" || chromium "${url}" || chromium-browser "${url}"`;
+    }
+
+    try {
+      await execAsync(command);
+      return {
+        success: true,
+        method: "system_command",
+        message: `已使用系统命令打开Chrome: ${url}`,
+        note: "请等待几秒让页面加载完成"
+      };
+    } catch (err) {
+      throw new Error(`无法打开Chrome: ${err.message}`);
+    }
   }
 }
