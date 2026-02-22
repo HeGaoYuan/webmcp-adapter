@@ -1,0 +1,114 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  background-color: #0a0a0f;
+  color: #e5e7eb;
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  min-height: 100vh;
+}
+
+/* Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+}
+::-webkit-scrollbar-track {
+  background: #0a0a0f;
+}
+::-webkit-scrollbar-thumb {
+  background: #374151;
+  border-radius: 3px;
+}
+
+/* Markdown prose styles */
+.prose-dark {
+  color: #d1d5db;
+  line-height: 1.75;
+}
+.prose-dark h1,
+.prose-dark h2,
+.prose-dark h3,
+.prose-dark h4 {
+  color: #f9fafb;
+  font-weight: 600;
+  margin-top: 1.5em;
+  margin-bottom: 0.5em;
+}
+.prose-dark h1 { font-size: 1.5rem; }
+.prose-dark h2 { font-size: 1.25rem; border-bottom: 1px solid #1e1e2e; padding-bottom: 0.4em; }
+.prose-dark h3 { font-size: 1.1rem; }
+.prose-dark p { margin-bottom: 1em; }
+.prose-dark ul,
+.prose-dark ol {
+  padding-left: 1.5em;
+  margin-bottom: 1em;
+}
+.prose-dark li { margin-bottom: 0.25em; }
+.prose-dark code {
+  background: #1e1e2e;
+  color: #a5b4fc;
+  padding: 0.15em 0.4em;
+  border-radius: 4px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.875em;
+}
+.prose-dark pre {
+  background: #111118;
+  border: 1px solid #1e1e2e;
+  border-radius: 8px;
+  padding: 1rem;
+  overflow-x: auto;
+  margin-bottom: 1em;
+}
+.prose-dark pre code {
+  background: none;
+  padding: 0;
+  color: #e5e7eb;
+  font-size: 0.875rem;
+}
+.prose-dark a {
+  color: #818cf8;
+  text-decoration: none;
+}
+.prose-dark a:hover {
+  text-decoration: underline;
+}
+.prose-dark blockquote {
+  border-left: 3px solid #374151;
+  padding-left: 1em;
+  color: #9ca3af;
+  margin: 1em 0;
+}
+.prose-dark table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-bottom: 1em;
+}
+.prose-dark th,
+.prose-dark td {
+  border: 1px solid #1e1e2e;
+  padding: 0.5em 1em;
+  text-align: left;
+}
+.prose-dark th {
+  background: #111118;
+  color: #f9fafb;
+}
+.prose-dark hr {
+  border-color: #1e1e2e;
+  margin: 1.5em 0;
+}
