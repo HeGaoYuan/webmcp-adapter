@@ -1,0 +1,381 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    [hidden] { display: none !important; }
+
+    body {
+      width: 360px;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+      font-size: 13px;
+      color: #111827;
+      background: #fff;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* ── Header ───────────────────────────────────────────── */
+    .header {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 12px 14px 10px;
+      border-bottom: 1px solid #f0f0f0;
+    }
+    .header-logo {
+      width: 20px;
+      height: 20px;
+      flex-shrink: 0;
+    }
+    .header-title {
+      font-size: 13px;
+      font-weight: 600;
+      color: #111;
+      letter-spacing: -0.01em;
+    }
+    .header-badge {
+      margin-left: auto;
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      font-size: 11px;
+      font-weight: 500;
+      padding: 2px 7px;
+      border-radius: 99px;
+    }
+    .header-badge .dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+    .badge-active  { background: #f0fdf4; color: #15803d; }
+    .badge-active .dot { background: #22c55e; }
+    .badge-available { background: #fff7ed; color: #c2410c; }
+    .badge-available .dot { background: #f97316; }
+    .badge-none    { background: #f9fafb; color: #6b7280; }
+    .badge-none .dot { background: #d1d5db; }
+
+    /* ── Main ─────────────────────────────────────────────── */
+    .main { padding: 14px; }
+
+    /* ── Loading ──────────────────────────────────────────── */
+    .loading {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      padding: 32px 0;
+      color: #9ca3af;
+      font-size: 12px;
+    }
+    .spinner {
+      width: 14px; height: 14px;
+      border: 2px solid #e5e7eb;
+      border-top-color: #6b7280;
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ── Active State ─────────────────────────────────────── */
+    .section-label {
+      font-size: 11px;
+      font-weight: 600;
+      color: #6b7280;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-bottom: 10px;
+    }
+
+    .tool-list {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      max-height: 280px;
+      overflow-y: auto;
+    }
+    .tool-list::-webkit-scrollbar { width: 4px; }
+    .tool-list::-webkit-scrollbar-track { background: transparent; }
+    .tool-list::-webkit-scrollbar-thumb { background: #e5e7eb; border-radius: 2px; }
+
+    .tool-item {
+      padding: 8px 10px;
+      border-radius: 6px;
+      background: #f9fafb;
+      border: 1px solid #f3f4f6;
+    }
+    .tool-name {
+      font-family: "SF Mono", "JetBrains Mono", "Fira Code", Menlo, monospace;
+      font-size: 11.5px;
+      font-weight: 600;
+      color: #1d4ed8;
+      margin-bottom: 2px;
+    }
+    .tool-desc {
+      font-size: 11.5px;
+      color: #4b5563;
+      line-height: 1.4;
+    }
+
+    /* ── Available State ──────────────────────────────────── */
+    .adapter-card {
+      border: 1px solid #fed7aa;
+      border-radius: 8px;
+      padding: 12px;
+      background: #fff7ed;
+      margin-bottom: 12px;
+    }
+    .adapter-name {
+      font-size: 15px;
+      font-weight: 700;
+      color: #111827;
+      margin-bottom: 4px;
+    }
+    .adapter-desc {
+      font-size: 12px;
+      color: #374151;
+      line-height: 1.5;
+      margin-bottom: 8px;
+    }
+    .adapter-meta {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+    .meta-tag {
+      font-size: 10.5px;
+      color: #6b7280;
+      background: #f3f4f6;
+      padding: 1px 6px;
+      border-radius: 4px;
+      font-weight: 500;
+    }
+    .verified-tag {
+      font-size: 10.5px;
+      color: #15803d;
+      background: #dcfce7;
+      padding: 1px 6px;
+      border-radius: 4px;
+      font-weight: 600;
+    }
+
+    .btn-row {
+      display: flex;
+      gap: 8px;
+      margin-top: 4px;
+    }
+    .btn {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 5px;
+      padding: 7px 10px;
+      border-radius: 6px;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      border: none;
+      transition: background 0.15s, opacity 0.15s;
+    }
+    .btn:disabled { opacity: 0.6; cursor: not-allowed; }
+    .btn-primary {
+      background: #f97316;
+      color: #fff;
+    }
+    .btn-primary:hover:not(:disabled) { background: #ea6b0f; }
+    .btn-secondary {
+      background: #f3f4f6;
+      color: #374151;
+      border: 1px solid #e5e7eb;
+    }
+    .btn-secondary:hover:not(:disabled) { background: #e5e7eb; }
+    .btn-success {
+      background: #22c55e;
+      color: #fff;
+    }
+
+    /* ── None State ───────────────────────────────────────── */
+    .none-body {
+      text-align: center;
+      padding: 16px 0 8px;
+    }
+    .none-icon {
+      font-size: 28px;
+      margin-bottom: 10px;
+    }
+    .none-title {
+      font-size: 13px;
+      font-weight: 600;
+      color: #374151;
+      margin-bottom: 6px;
+    }
+    .none-desc {
+      font-size: 12px;
+      color: #6b7280;
+      line-height: 1.5;
+      margin-bottom: 14px;
+    }
+
+    /* ── Error State ──────────────────────────────────────── */
+    .error-body {
+      text-align: center;
+      padding: 20px 0;
+      color: #6b7280;
+      font-size: 12px;
+    }
+
+    /* ── Install Success ──────────────────────────────────── */
+    .install-success {
+      text-align: center;
+      padding: 12px 0;
+    }
+    .success-icon {
+      font-size: 32px;
+      margin-bottom: 8px;
+    }
+    .success-title {
+      font-size: 14px;
+      font-weight: 700;
+      color: #15803d;
+      margin-bottom: 4px;
+    }
+    .success-desc {
+      font-size: 12px;
+      color: #4b5563;
+      margin-bottom: 14px;
+    }
+
+    /* ── Footer ───────────────────────────────────────────── */
+    .footer {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 8px 14px;
+      border-top: 1px solid #f0f0f0;
+      background: #fafafa;
+    }
+    .ws-status {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      font-size: 11px;
+      color: #6b7280;
+    }
+    .ws-dot {
+      width: 6px; height: 6px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+    .ws-dot-on  { background: #22c55e; }
+    .ws-dot-off { background: #d1d5db; }
+    .footer-links {
+      display: flex;
+      gap: 10px;
+    }
+    .link {
+      font-size: 11px;
+      color: #9ca3af;
+      cursor: pointer;
+      text-decoration: none;
+      transition: color 0.12s;
+    }
+    .link:hover { color: #374151; }
+  </style>
+</head>
+<body>
+
+  <!-- Header -->
+  <div class="header">
+    <img class="header-logo" src="../icons/icon48.png" alt="WebMCP" />
+    <span class="header-title">WebMCP Adapter</span>
+    <span class="header-badge" id="headerBadge">
+      <span class="dot"></span>
+      <span id="headerBadgeText"></span>
+    </span>
+  </div>
+
+  <!-- Main content -->
+  <div class="main" id="main">
+
+    <!-- Loading -->
+    <div id="stateLoading" class="loading">
+      <div class="spinner"></div>
+      <span>加载中…</span>
+    </div>
+
+    <!-- Active: tools ready -->
+    <div id="stateActive" hidden>
+      <div class="section-label" id="toolCountLabel"></div>
+      <div class="tool-list" id="toolList"></div>
+    </div>
+
+    <!-- Available: adapter found but not installed -->
+    <div id="stateAvailable" hidden>
+      <div class="adapter-card">
+        <div class="adapter-name" id="adapterName"></div>
+        <div class="adapter-desc" id="adapterDesc"></div>
+        <div class="adapter-meta">
+          <span class="meta-tag" id="adapterAuthor"></span>
+          <span class="verified-tag" id="adapterVerified" hidden>已验证</span>
+        </div>
+      </div>
+      <div class="btn-row">
+        <button class="btn btn-secondary" id="btnViewSource">查看源码 ↗</button>
+        <button class="btn btn-primary" id="btnInstall">安装适配器</button>
+      </div>
+    </div>
+
+    <!-- Install success -->
+    <div id="stateInstallSuccess" hidden>
+      <div class="install-success">
+        <div class="success-icon">✅</div>
+        <div class="success-title">适配器安装成功</div>
+        <div class="success-desc">请刷新此页面以激活 AI 工具</div>
+        <div class="btn-row" style="justify-content:center">
+          <button class="btn btn-success" id="btnReload" style="flex:0;padding:7px 20px">刷新页面</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- None: no adapter for this site -->
+    <div id="stateNone" hidden>
+      <div class="none-body">
+        <div class="none-icon">🔍</div>
+        <div class="none-title">此网站暂无适配器</div>
+        <div class="none-desc">
+          WebMCP 目前还不支持此网站。<br />
+          你可以提交 Issue 或贡献一个新适配器。
+        </div>
+        <div class="btn-row" style="justify-content:center;gap:8px">
+          <button class="btn btn-secondary" id="btnNewIssue" style="flex:0;padding:7px 14px">提交 Issue ↗</button>
+          <button class="btn btn-secondary" id="btnContribute" style="flex:0;padding:7px 14px">贡献指南 ↗</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Error / unsupported page -->
+    <div id="stateError" hidden>
+      <div class="error-body" id="errorMsg">无法获取此页面的信息</div>
+    </div>
+
+  </div>
+
+  <!-- Footer -->
+  <div class="footer">
+    <div class="ws-status">
+      <div class="ws-dot" id="wsDot"></div>
+      <span id="wsLabel">检查连接…</span>
+    </div>
+    <div class="footer-links">
+      <span class="link" id="linkGitHub">GitHub ↗</span>
+      <span class="link" id="linkDocs">文档 ↗</span>
+    </div>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>

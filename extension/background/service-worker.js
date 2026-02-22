@@ -33,6 +33,13 @@ let ws = null;
  */
 const toolRegistry = new Map();
 
+/**
+ * 待安装适配器表：tabId -> adapterMeta（registry 里找到但未安装的 adapter）
+ * 供 popup 查询当前 tab 状态用
+ * @type {Map<number, object>}
+ */
+const tabAvailableAdapter = new Map();
+
 // ─── WebSocket 连接 ──────────────────────────────────────────────────────────
 
 let isConnecting = false;
@@ -168,11 +175,60 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     return true;
   }
 
+  // Popup 查询当前 tab 的状态（active / available / none）
+  if (msg.type === "get_tab_info") {
+    (async () => {
+      const { tabId, url } = msg;
+      const isConnected = ws && ws.readyState === WebSocket.OPEN;
+      const tools = toolRegistry.get(tabId) ?? [];
+
+      if (tools.length > 0) {
+        sendResponse({ state: "active", tools, isConnected });
+        return;
+      }
+
+      // Check in-memory cache first (set by injectAdapters when adapter found but not installed)
+      const availableAdapter = tabAvailableAdapter.get(tabId);
+      if (availableAdapter) {
+        sendResponse({ state: "available", adapterMeta: availableAdapter, isConnected });
+        return;
+      }
+
+      // Fallback: check registry by URL (handles cases where popup opened before injectAdapters ran)
+      const registry = await getCachedRegistry();
+      if (registry?.adapters && url) {
+        try {
+          const hostname = new URL(url).hostname;
+          const adapterMeta = registry.adapters.find(a =>
+            a.match.some(d => hostname.includes(d))
+          );
+          if (adapterMeta) {
+            const stored = await chrome.storage.local.get(`adapter:${adapterMeta.id}`);
+            if (!stored[`adapter:${adapterMeta.id}`]) {
+              sendResponse({ state: "available", adapterMeta, isConnected });
+              return;
+            }
+          }
+        } catch { /* bad URL */ }
+      }
+
+      sendResponse({ state: "none", isConnected });
+    })();
+    return true;
+  }
+
   // Popup 请求安装 adapter
   if (msg.type === "install_adapter") {
-    installAdapter(msg.adapterId)
-      .then(result => sendResponse(result))
-      .catch(err => sendResponse({ ok: false, error: err.message }));
+    (async () => {
+      const result = await installAdapter(msg.adapterId).catch(err => ({ ok: false, error: err.message }));
+      if (result.ok && msg.tabId && msg.url) {
+        // Clear available-adapter hint and inject immediately
+        tabAvailableAdapter.delete(msg.tabId);
+        clearBadge(msg.tabId);
+        await injectAdapters(msg.tabId, msg.url);
+      }
+      sendResponse(result);
+    })();
     return true;
   }
 
@@ -208,6 +264,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     toolRegistry.set(tabId, msg.tools);
     console.log(`[WebMCP] Tab ${tabId} registered ${msg.tools.length} tools`);
     sendToNative({ type: "tools_updated", tabId, tools: msg.tools });
+    setBadgeActive(tabId, msg.tools.length);
     sendResponse({ ok: true });
   }
 
@@ -219,6 +276,8 @@ chrome.tabs.onRemoved.addListener((tabId) => {
     toolRegistry.delete(tabId);
     sendToNative({ type: "tools_updated", tabId, tools: [] });
   }
+  tabAvailableAdapter.delete(tabId);
+  clearBadge(tabId);
 });
 
 // ─── Hub Registry 管理 ──────────────────────────────────────────────────────
@@ -271,16 +330,11 @@ async function fetchAndCacheRegistry() {
  */
 async function installAdapter(adapterId) {
   try {
-    const codeUrl = `${ADAPTER_BASE_URL}/${adapterId}/index.js`;
-    const resp = await fetch(codeUrl);
-    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-    const code = await resp.text();
-
     const registry = await getCachedRegistry();
     const meta = registry?.adapters?.find(a => a.id === adapterId) ?? { id: adapterId };
 
     await chrome.storage.local.set({
-      [`adapter:${adapterId}`]: { code, meta, installed_at: Date.now() },
+      [`adapter:${adapterId}`]: { meta, installed_at: Date.now() },
     });
 
     console.log(`[WebMCP] Adapter installed: ${adapterId}`);
@@ -311,6 +365,39 @@ async function getInstalledAdapters() {
     .map(([, value]) => value.meta);
 }
 
+// ─── Badge 管理 ─────────────────────────────────────────────────────────────
+
+/**
+ * 绿色 badge，显示工具数量，表示 adapter 已激活
+ * @param {number} tabId
+ * @param {number} toolCount
+ */
+function setBadgeActive(tabId, toolCount) {
+  chrome.action.setBadgeText({ text: String(toolCount), tabId });
+  chrome.action.setBadgeBackgroundColor({ color: "#22c55e", tabId }); // green-500
+  chrome.action.setTitle({ title: `WebMCP：${toolCount} 个工具已就绪`, tabId });
+}
+
+/**
+ * 橙色 badge "!"，表示有可用 adapter 但未安装
+ * @param {number} tabId
+ * @param {string} adapterName
+ */
+function setBadgeAvailable(tabId, adapterName) {
+  chrome.action.setBadgeText({ text: "!", tabId });
+  chrome.action.setBadgeBackgroundColor({ color: "#f97316", tabId }); // orange-500
+  chrome.action.setTitle({ title: `WebMCP：发现「${adapterName}」适配器，点击扩展图标安装`, tabId });
+}
+
+/**
+ * 清除 badge
+ * @param {number} tabId
+ */
+function clearBadge(tabId) {
+  chrome.action.setBadgeText({ text: "", tabId });
+  chrome.action.setTitle({ title: "WebMCP Adapter", tabId });
+}
+
 // ─── Adapter 注入 ───────────────────────────────────────────────────────────
 
 /**
@@ -331,21 +418,23 @@ async function injectAdapters(tabId, url) {
     const stored = await chrome.storage.local.get(`adapter:${adapterMeta.id}`);
     const adapterData = stored[`adapter:${adapterMeta.id}`];
 
-    if (adapterData?.code) {
-      // 已安装：动态注入
+    if (adapterData) {
+      // 已安装：注入本地 adapter 文件（MV3 不允许 eval，必须用 files）
       try {
         await chrome.scripting.executeScript({
           target: { tabId },
           world: "ISOLATED",
-          func: (code) => { (new Function(code))(); },
-          args: [adapterData.code],
+          files: [`adapters/${adapterMeta.id}.js`],
         });
+        tabAvailableAdapter.delete(tabId); // 注入成功后清除待安装标记
         console.log(`[WebMCP] Injected adapter "${adapterMeta.id}" into tab ${tabId}`);
       } catch (err) {
         console.error(`[WebMCP] Failed to inject adapter "${adapterMeta.id}":`, err.message);
       }
     } else {
-      // 未安装：通知用户
+      // 未安装：记录可用 adapter 供 popup 查询，同时设橙色 badge + 通知用户
+      tabAvailableAdapter.set(tabId, adapterMeta);
+      setBadgeAvailable(tabId, adapterMeta.name);
       notifyAdapterAvailable(adapterMeta, tabId);
     }
   }
@@ -370,7 +459,10 @@ function notifyAdapterAvailable(adapterMeta, tabId) {
   chrome.notifications.onClicked.addListener(function onClicked(id) {
     if (id !== notificationId) return;
     chrome.notifications.onClicked.removeListener(onClicked);
-    installAdapter(adapterMeta.id).then(() => injectAdapters(tabId, `https://${adapterMeta.id}`));
+    installAdapter(adapterMeta.id).then(() => {
+      clearBadge(tabId);
+      injectAdapters(tabId, `https://${adapterMeta.id}`);
+    });
   });
 
   // 点击通知按钮
@@ -379,7 +471,13 @@ function notifyAdapterAvailable(adapterMeta, tabId) {
     chrome.notifications.onButtonClicked.removeListener(onButtonClicked);
     chrome.notifications.clear(notificationId);
     if (btnIdx === 0) {
-      installAdapter(adapterMeta.id).then(() => injectAdapters(tabId, `https://${adapterMeta.id}`));
+      installAdapter(adapterMeta.id).then(() => {
+        clearBadge(tabId);
+        injectAdapters(tabId, `https://${adapterMeta.id}`);
+      });
+    } else {
+      // 用户点忽略，清除 badge
+      clearBadge(tabId);
     }
   });
 }
