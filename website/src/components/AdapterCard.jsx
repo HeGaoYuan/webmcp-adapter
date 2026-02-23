@@ -1,8 +1,10 @@
 import { Link } from 'react-router-dom'
 import { useLang } from '../lib/LanguageContext'
+import { getLocalizedMeta } from '../lib/github'
 
 export default function AdapterCard({ adapter }) {
-  const { t } = useLang()
+  const { lang, t } = useLang()
+  const localized = getLocalizedMeta(adapter, lang)
   const favicon = `https://www.google.com/s2/favicons?domain=${adapter.match?.[0] || adapter.id}&sz=32`
 
   return (
@@ -24,7 +26,7 @@ export default function AdapterCard({ adapter }) {
         </div>
         <div className="flex-1 min-w-0">
           <h3 className="text-white font-semibold text-sm group-hover:text-accent-hover transition-colors truncate">
-            {adapter.name}
+            {localized.name}
           </h3>
           <p className="text-muted text-xs mt-0.5 font-mono truncate">
             {adapter.match?.[0] || adapter.id}
@@ -34,7 +36,7 @@ export default function AdapterCard({ adapter }) {
 
       {/* Description */}
       <p className="text-gray-400 text-sm line-clamp-2 mb-4 leading-relaxed">
-        {adapter.description}
+        {localized.description}
       </p>
 
       {/* Footer */}

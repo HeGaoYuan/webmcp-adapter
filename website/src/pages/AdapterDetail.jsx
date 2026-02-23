@@ -6,6 +6,7 @@ import {
   fetchAdapterMeta,
   fetchAdapterReadme,
   getAdapterGithubUrl,
+  getLocalizedMeta,
 } from '../lib/github'
 import { useLang } from '../lib/LanguageContext'
 
@@ -25,7 +26,7 @@ export default function AdapterDetail() {
       fetchAdapterReadme(id, lang),
     ])
       .then(([m, r]) => {
-        setMeta(m)
+        setMeta(getLocalizedMeta(m, lang))
         setReadme(r)
         setLoading(false)
       })

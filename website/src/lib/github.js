@@ -35,3 +35,9 @@ export function getAdapterGithubUrl(id) {
 export function getContributeUrl() {
   return `${GITHUB}/blob/${BRANCH}/hub/CONTRIBUTING.md`
 }
+
+export function getLocalizedMeta(meta, lang) {
+  if (!meta) return meta
+  const overrides = meta.i18n?.[lang] ?? {}
+  return { ...meta, ...overrides }
+}
