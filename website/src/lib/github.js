@@ -17,7 +17,12 @@ export async function fetchAdapterMeta(id) {
   return res.json()
 }
 
-export async function fetchAdapterReadme(id) {
+export async function fetchAdapterReadme(id, lang = 'en') {
+  // For non-English languages, try README.{lang}.md first, then fall back to README.md
+  if (lang !== 'en') {
+    const localized = await fetch(`${RAW}/hub/adapters/${id}/README.${lang}.md`)
+    if (localized.ok) return localized.text()
+  }
   const res = await fetch(`${RAW}/hub/adapters/${id}/README.md`)
   if (!res.ok) return null
   return res.text()

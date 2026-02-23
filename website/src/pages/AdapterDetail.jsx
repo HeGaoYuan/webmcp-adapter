@@ -11,7 +11,7 @@ import { useLang } from '../lib/LanguageContext'
 
 export default function AdapterDetail() {
   const { id } = useParams()
-  const { t } = useLang()
+  const { lang, t } = useLang()
   const [meta, setMeta] = useState(null)
   const [readme, setReadme] = useState(null)
   const [loading, setLoading] = useState(true)
@@ -22,7 +22,7 @@ export default function AdapterDetail() {
     setError(null)
     Promise.all([
       fetchAdapterMeta(id),
-      fetchAdapterReadme(id),
+      fetchAdapterReadme(id, lang),
     ])
       .then(([m, r]) => {
         setMeta(m)
@@ -33,7 +33,7 @@ export default function AdapterDetail() {
         setError(e.message)
         setLoading(false)
       })
-  }, [id])
+  }, [id, lang])
 
   const favicon = `https://www.google.com/s2/favicons?domain=${meta?.match?.[0] || id}&sz=48`
   const githubUrl = getAdapterGithubUrl(id)
