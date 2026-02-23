@@ -29,6 +29,16 @@ export default function Navbar() {
           >
             {t.nav.adapters}
           </Link>
+          <Link
+            to="/docs"
+            className={`px-3 py-1.5 rounded-md text-sm transition-colors ${
+              pathname.startsWith('/docs')
+                ? 'text-white bg-surface'
+                : 'text-muted hover:text-white'
+            }`}
+          >
+            {t.nav.docs}
+          </Link>
           <a
             href={GITHUB_REPO}
             target="_blank"

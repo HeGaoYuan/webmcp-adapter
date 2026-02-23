@@ -5,6 +5,7 @@ import Footer from './components/Footer'
 import Home from './pages/Home'
 import AdapterList from './pages/AdapterList'
 import AdapterDetail from './pages/AdapterDetail'
+import Docs from './pages/Docs'
 
 function App() {
   return (
@@ -17,6 +18,8 @@ function App() {
             <Route path="/" element={<Home />} />
             <Route path="/adapters" element={<AdapterList />} />
             <Route path="/adapters/:id" element={<AdapterDetail />} />
+            <Route path="/docs" element={<Docs />} />
+            <Route path="/docs/:slug" element={<Docs />} />
           </Routes>
         </main>
         <Footer />
