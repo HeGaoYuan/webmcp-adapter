@@ -1,4 +1,5 @@
 import { BrowserRouter, Routes, Route } from 'react-router-dom'
+import { LanguageProvider } from './lib/LanguageContext'
 import Navbar from './components/Navbar'
 import Footer from './components/Footer'
 import Home from './pages/Home'
@@ -7,6 +8,7 @@ import AdapterDetail from './pages/AdapterDetail'
 
 function App() {
   return (
+    <LanguageProvider>
     <BrowserRouter>
       <div className="min-h-screen flex flex-col">
         <Navbar />
@@ -20,6 +22,7 @@ function App() {
         <Footer />
       </div>
     </BrowserRouter>
+    </LanguageProvider>
   )
 }
 

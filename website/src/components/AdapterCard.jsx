@@ -1,6 +1,8 @@
 import { Link } from 'react-router-dom'
+import { useLang } from '../lib/LanguageContext'
 
 export default function AdapterCard({ adapter }) {
+  const { t } = useLang()
   const favicon = `https://www.google.com/s2/favicons?domain=${adapter.match?.[0] || adapter.id}&sz=32`
 
   return (
@@ -50,7 +52,7 @@ export default function AdapterCard({ adapter }) {
               <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
               <polyline points="22 4 12 14.01 9 11.01" />
             </svg>
-            Verified {adapter.verified_on}
+            {t.adapterCard.verified} {adapter.verified_on}
           </span>
         )}
       </div>

@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react'
-import { Link } from 'react-router-dom'
 import { fetchRegistry, getContributeUrl } from '../lib/github'
 import AdapterCard from '../components/AdapterCard'
+import { useLang } from '../lib/LanguageContext'
 
 export default function AdapterList() {
+  const { t } = useLang()
   const [adapters, setAdapters] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
@@ -31,15 +32,16 @@ export default function AdapterList() {
     )
   })
 
+  const countLabel = `${filtered.length} ${
+    filtered.length === 1 ? t.adapterList.countSuffix : t.adapterList.countSuffixPlural
+  }`
+
   return (
     <div className="max-w-6xl mx-auto px-4 sm:px-6 pt-28 pb-16">
       {/* Header */}
       <div className="mb-10">
-        <h1 className="text-3xl font-bold text-white mb-2">Adapter Hub</h1>
-        <p className="text-gray-400">
-          Community-built adapters that let AI control websites.{' '}
-          <span className="text-muted">由社区构建的网站 AI 适配器。</span>
-        </p>
+        <h1 className="text-3xl font-bold text-white mb-2">{t.adapterList.title}</h1>
+        <p className="text-gray-400">{t.adapterList.subtitle}</p>
       </div>
 
       {/* Search + Action */}
@@ -61,7 +63,7 @@ export default function AdapterList() {
             type="text"
             value={query}
             onChange={e => setQuery(e.target.value)}
-            placeholder="Search adapters... (e.g. mail, gmail, notion)"
+            placeholder={t.adapterList.searchPlaceholder}
             className="w-full pl-9 pr-4 py-2.5 bg-surface border border-border rounded-lg text-sm text-white placeholder-muted focus:outline-none focus:border-accent/60 transition-colors"
           />
         </div>
@@ -74,7 +76,7 @@ export default function AdapterList() {
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
             <path d="M12 5v14M5 12h14" />
           </svg>
-          Submit adapter
+          {t.adapterList.submitAdapter}
         </a>
       </div>
 
@@ -99,7 +101,7 @@ export default function AdapterList() {
 
       {error && (
         <div className="text-center py-16">
-          <div className="text-red-400 mb-2">Failed to load adapters</div>
+          <div className="text-red-400 mb-2">{t.adapterDetail.failedLoad}</div>
           <p className="text-muted text-sm">{error}</p>
         </div>
       )}
@@ -108,9 +110,9 @@ export default function AdapterList() {
         <>
           {filtered.length === 0 ? (
             <div className="text-center py-16">
-              <div className="text-white mb-2">No adapters found</div>
+              <div className="text-white mb-2">{t.adapterList.noResultsTitle}</div>
               <p className="text-muted text-sm mb-6">
-                No adapter matches "{query}". Be the first to add one!
+                {t.adapterList.noResultsDesc.replace('%s', query)}
               </p>
               <a
                 href={getContributeUrl()}
@@ -118,14 +120,14 @@ export default function AdapterList() {
                 rel="noopener noreferrer"
                 className="text-accent hover:text-accent-hover text-sm transition-colors"
               >
-                Read Contributing Guide →
+                {t.adapterList.noResultsLink}
               </a>
             </div>
           ) : (
             <>
               <div className="text-muted text-sm mb-4">
-                {filtered.length} adapter{filtered.length !== 1 ? 's' : ''}
-                {query && ` matching "${query}"`}
+                {countLabel}
+                {query && ` ${t.adapterList.matching} "${query}"`}
               </div>
               <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
                 {filtered.map(adapter => (
