@@ -412,7 +412,7 @@ async function injectAdapters(tabId, url) {
   if (!registry?.adapters) return;
 
   for (const adapterMeta of registry.adapters) {
-    const matches = adapterMeta.match.some(domain => hostname.includes(domain));
+    const matches = adapterMeta.match.some(domain => hostname === domain || hostname.endsWith(`.${domain}`));
     if (!matches) continue;
 
     const stored = await chrome.storage.local.get(`adapter:${adapterMeta.id}`);
