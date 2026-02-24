@@ -16,10 +16,10 @@
 
 import { WebSocketServer } from "ws";
 import { EventEmitter } from "events";
-import { exec } from "child_process";
+import { execFile } from "child_process";
 import { promisify } from "util";
 
-const execAsync = promisify(exec);
+const execFileAsync = promisify(execFile);
 const WS_PORT = 3711;
 
 export class NativeMessagingBridge extends EventEmitter {
@@ -290,13 +290,20 @@ export class NativeMessagingBridge extends EventEmitter {
    * 优先使用Chrome扩展API（如果已连接），否则使用系统命令
    */
   async openBrowser(url) {
+    // Validate URL scheme — only http/https are allowed
+    let parsedUrl;
+    try { parsedUrl = new URL(url); } catch { throw new Error(`无效的URL: ${url}`); }
+    if (parsedUrl.protocol !== "http:" && parsedUrl.protocol !== "https:") {
+      throw new Error(`不支持的URL协议 "${parsedUrl.protocol}"，只允许 http/https`);
+    }
+
     // 方案1：如果Chrome扩展已连接，使用扩展API打开新tab
     if (this.isExtensionConnected()) {
       try {
         process.stderr.write(`[Bridge] Opening URL via Chrome extension: ${url}\n`);
         const result = await this._request({ type: "open_tab", url }, 5000);
-        return { 
-          success: true, 
+        return {
+          success: true,
           method: "extension",
           message: `已在Chrome中打开新标签页: ${url}`,
           tabId: result.tabId
@@ -307,25 +314,24 @@ export class NativeMessagingBridge extends EventEmitter {
       }
     }
 
-    // 方案2：使用系统命令打开Chrome
+    // 方案2：使用 execFile（非 shell）打开 Chrome，避免命令注入
     process.stderr.write(`[Bridge] Opening URL via system command: ${url}\n`);
-    
-    const platform = process.platform;
-    let command;
-
-    if (platform === "darwin") {
-      // macOS
-      command = `open -a "Google Chrome" "${url}"`;
-    } else if (platform === "win32") {
-      // Windows
-      command = `start chrome "${url}"`;
-    } else {
-      // Linux
-      command = `google-chrome "${url}" || chromium "${url}" || chromium-browser "${url}"`;
-    }
 
     try {
-      await execAsync(command);
+      if (process.platform === "darwin") {
+        await execFileAsync("open", ["-a", "Google Chrome", url]);
+      } else if (process.platform === "win32") {
+        // `start` is a cmd.exe built-in — must go through cmd /c
+        await execFileAsync("cmd", ["/c", "start", "", "chrome", url]);
+      } else {
+        // Linux: try browsers in order until one succeeds
+        const browsers = ["google-chrome", "chromium", "chromium-browser"];
+        let opened = false;
+        for (const bin of browsers) {
+          try { await execFileAsync(bin, [url]); opened = true; break; } catch { /* try next */ }
+        }
+        if (!opened) throw new Error("找不到可用的 Chrome/Chromium 可执行文件");
+      }
       return {
         success: true,
         method: "system_command",

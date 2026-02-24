@@ -392,6 +392,9 @@ function clearBadge(tabId) {
 
 // ─── Adapter 注入 ───────────────────────────────────────────────────────────
 
+/** Safe adapter id: starts with alphanumeric, then alphanumeric/dot/hyphen/underscore only. */
+const SAFE_ADAPTER_ID_RE = /^[a-zA-Z0-9][a-zA-Z0-9._-]*$/;
+
 /**
  * 检查给定 URL 的 Tab，注入已安装的 adapter（本地文件存在则注入）；
  * 若本地文件不存在但 Hub 有匹配，设橙色 badge 提示用户用 CLI 安装。
@@ -411,6 +414,11 @@ async function injectAdapters(tabId, url) {
   // adapter id：优先用 registry 里的 id，其次用 hostname 本身（兼容本地自定义 adapter）
   const adapterId = adapterMeta?.id ?? hostname;
 
+  // Guard against path traversal or unexpected characters in the adapter id
+  if (!SAFE_ADAPTER_ID_RE.test(adapterId)) {
+    console.warn(`[WebMCP] Unsafe adapter id "${adapterId}", skipping`);
+    return;
+  }
   // 检查本地文件是否存在
   const isInstalled = await isAdapterFileInstalled(adapterId);
 

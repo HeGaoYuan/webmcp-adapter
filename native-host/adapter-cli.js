@@ -19,11 +19,11 @@ import { existsSync, mkdirSync, readdirSync, rmSync } from "fs";
 import { readFile, writeFile } from "fs/promises";
 import { join, dirname, resolve } from "path";
 import { fileURLToPath } from "url";
-import { exec } from "child_process";
+import { execFile } from "child_process";
 import { promisify } from "util";
 import { WebSocket } from "ws";
 
-const execAsync = promisify(exec);
+const execFileAsync = promisify(execFile);
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -122,6 +122,12 @@ async function cmdInstall(args) {
     const url = args[urlIdx + 1];
     if (!url) {
       die("--url requires a URL argument");
+    }
+    // Only allow https:// — reject http, file, data, etc.
+    let parsedUrl;
+    try { parsedUrl = new URL(url); } catch { die(`Invalid URL: ${url}`); }
+    if (parsedUrl.protocol !== "https:") {
+      die(`Only https:// URLs are allowed for adapter installation (got "${parsedUrl.protocol}")`);
     }
     adapterId = explicitName ?? inferIdFromUrl(url);
     if (!adapterId) {
@@ -367,8 +373,8 @@ async function fetchJson(url) {
 
 async function fetchViaCurl(url) {
   try {
-    // -sLf: silent, follow redirects, fail on HTTP errors
-    const { stdout } = await execAsync(`curl -sLf --max-time 30 "${url}"`);
+    // Use execFile (not exec) to pass url as a separate arg — avoids shell injection
+    const { stdout } = await execFileAsync("curl", ["-sLf", "--max-time", "30", url]);
     return stdout;
   } catch (err) {
     throw new Error(

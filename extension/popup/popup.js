@@ -83,9 +83,14 @@ function renderAvailable(adapterMeta) {
     });
   };
 
-  // View source
-  document.getElementById("btnViewSource").onclick = () =>
-    openTab(adapterMeta.homepage ?? GITHUB_REPO);
+  // View source — only open http/https URLs
+  document.getElementById("btnViewSource").onclick = () => {
+    const href = adapterMeta.homepage ?? GITHUB_REPO;
+    try {
+      const u = new URL(href);
+      if (u.protocol === "https:" || u.protocol === "http:") openTab(href);
+    } catch { /* invalid URL, do nothing */ }
+  };
 
   showOnly("stateAvailable");
 }

@@ -37,6 +37,7 @@ export const docsSidebar = [
     titleEn: 'Legal',
     titleZh: '法律',
     items: [
+      { slug: 'security',    titleEn: 'Security Model', titleZh: '安全模型' },
       { slug: 'disclaimer', titleEn: 'Disclaimer', titleZh: '免责声明' },
     ],
   },
