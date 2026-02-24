@@ -422,6 +422,106 @@ function parseEmailDetail() {
 // ─── 适配器注册 ────────────────────────────────────────────────────────────
 // 不使用 ES module export，由 background 通过 executeScript 注入后调用 __webmcpRegister
 
+/**
+ * 返回163邮箱收件箱首页
+ *
+ * 测试示例：await navigateToInbox()
+ */
+async function navigateToInbox() {
+  try {
+    const currentUrl = window.location.href;
+
+    // 导航到收件箱首页
+    window.location.href = "https://mail.163.com/js6/main.jsp";
+
+    // 等待页面开始加载
+    await sleep(1000);
+
+    // 等待页面加载完成
+    let waitTime = 0;
+    const maxWait = 5000;
+    while (document.readyState !== 'complete' && waitTime < maxWait) {
+      await sleep(100);
+      waitTime += 100;
+    }
+
+    // 额外等待一点时间确保邮件列表加载
+    await sleep(1500);
+
+    return {
+      status: "success",
+      message: "已返回收件箱首页",
+      previousUrl: currentUrl,
+      currentUrl: window.location.href,
+      pageLoaded: document.readyState === 'complete'
+    };
+  } catch (error) {
+    return {
+      status: "error",
+      message: `导航失败: ${error.message}`,
+      error: error.message
+    };
+  }
+}
+
+/**
+ * 获取当前163邮箱页面的状态信息
+ *
+ * 测试示例：getCurrentPageInfo()
+ */
+function getCurrentPageInfo() {
+  try {
+    const url = window.location.href;
+    const title = document.title;
+
+    // 判断页面类型
+    const isInbox = url.includes('main.jsp') || url.includes('inbox');
+    const isEmailDetail = !!document.querySelector('[id*="read.ReadModule"]');
+    const isComposing = !!document.querySelector('.compose-container, [class*="compose"]');
+
+    // 获取邮件列表信息
+    let emailListInfo = null;
+    if (!isEmailDetail && !isComposing) {
+      const emailRows = document.querySelectorAll('div[sign="letter"]');
+      emailListInfo = {
+        totalEmails: emailRows.length,
+        hasEmails: emailRows.length > 0
+      };
+    }
+
+    // 获取邮件详情信息
+    let emailDetailInfo = null;
+    if (isEmailDetail) {
+      const subjectEl = document.querySelector('h1[id*="h1Subject"]');
+      const subject = subjectEl?.textContent?.trim() ?? "";
+      const attachments = document.querySelectorAll('ul.qs0 > li.lh0');
+
+      emailDetailInfo = {
+        subject,
+        hasAttachments: attachments.length > 0,
+        attachmentCount: attachments.length
+      };
+    }
+
+    return {
+      url,
+      title,
+      pageType: isEmailDetail ? 'email_detail' : (isComposing ? 'composing' : 'inbox'),
+      isInbox,
+      isEmailDetail,
+      isComposing,
+      emailListInfo,
+      emailDetailInfo,
+      readyState: document.readyState
+    };
+  } catch (error) {
+    return {
+      error: "Failed to get page info",
+      message: error.message
+    };
+  }
+}
+
 window.__webmcpRegister({
   name: "163-mail-adapter",
   match: ["mail.163.com"],
@@ -434,43 +534,7 @@ window.__webmcpRegister({
         properties: {},
         required: [],
       },
-      handler: async () => {
-        try {
-          // 记录当前URL
-          const currentUrl = window.location.href;
-          
-          // 导航到收件箱首页
-          window.location.href = "https://mail.163.com/js6/main.jsp";
-          
-          // 等待页面开始加载
-          await sleep(1000);
-          
-          // 等待页面加载完成
-          let waitTime = 0;
-          const maxWait = 5000;
-          while (document.readyState !== 'complete' && waitTime < maxWait) {
-            await sleep(100);
-            waitTime += 100;
-          }
-          
-          // 额外等待一点时间确保邮件列表加载
-          await sleep(1500);
-          
-          return {
-            status: "success",
-            message: "已返回收件箱首页",
-            previousUrl: currentUrl,
-            currentUrl: window.location.href,
-            pageLoaded: document.readyState === 'complete'
-          };
-        } catch (error) {
-          return {
-            status: "error",
-            message: `导航失败: ${error.message}`,
-            error: error.message
-          };
-        }
-      },
+      handler: () => navigateToInbox(),
     },
 
     {
@@ -545,58 +609,7 @@ window.__webmcpRegister({
         properties: {},
         required: [],
       },
-      handler: async () => {
-        try {
-          const url = window.location.href;
-          const title = document.title;
-          
-          // 判断页面类型
-          const isInbox = url.includes('main.jsp') || url.includes('inbox');
-          const isEmailDetail = !!document.querySelector('[id*="read.ReadModule"]');
-          const isComposing = !!document.querySelector('.compose-container, [class*="compose"]');
-          
-          // 获取邮件列表信息
-          let emailListInfo = null;
-          if (!isEmailDetail && !isComposing) {
-            const emailRows = document.querySelectorAll('div[sign="letter"]');
-            emailListInfo = {
-              totalEmails: emailRows.length,
-              hasEmails: emailRows.length > 0
-            };
-          }
-          
-          // 获取邮件详情信息
-          let emailDetailInfo = null;
-          if (isEmailDetail) {
-            const subjectEl = document.querySelector('h1[id*="h1Subject"]');
-            const subject = subjectEl?.textContent?.trim() ?? "";
-            const attachments = document.querySelectorAll('ul.qs0 > li.lh0');
-            
-            emailDetailInfo = {
-              subject,
-              hasAttachments: attachments.length > 0,
-              attachmentCount: attachments.length
-            };
-          }
-          
-          return {
-            url,
-            title,
-            pageType: isEmailDetail ? 'email_detail' : (isComposing ? 'composing' : 'inbox'),
-            isInbox,
-            isEmailDetail,
-            isComposing,
-            emailListInfo,
-            emailDetailInfo,
-            readyState: document.readyState
-          };
-        } catch (error) {
-          return {
-            error: "Failed to get page info",
-            message: error.message
-          };
-        }
-      },
+      handler: () => getCurrentPageInfo(),
     },
 
     /*
