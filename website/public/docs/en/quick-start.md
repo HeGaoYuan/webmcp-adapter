@@ -9,20 +9,29 @@ Get WebMCP Adapter running in 5 minutes.
 - Google Chrome
 - [Claude Desktop](https://claude.ai/download)
 
-## Step 1 — Clone and install
+## Step 1 — Install
 
 ```bash
-git clone https://github.com/HeGaoYuan/webmcp-adapter.git
-cd webmcp-adapter
-npm install
+npm install -g webmcp-adapter
 ```
 
-## Step 2 — Install the Chrome extension
+This installs the `webmcp` CLI globally and includes the Chrome extension bundle.
 
-1. Open Chrome and navigate to `chrome://extensions`
+## Step 2 — Load the Chrome extension
+
+Find the path to the bundled extension:
+
+```bash
+webmcp extension-path
+# Example output: /usr/local/lib/node_modules/webmcp-adapter/extension
+```
+
+Then load it in Chrome:
+
+1. Open `chrome://extensions`
 2. Enable **Developer mode** (toggle in the top-right corner)
 3. Click **Load unpacked**
-4. Select the `extension/` folder inside the cloned repo
+4. Select the path printed by `webmcp extension-path`
 
 The extension icon will appear in your Chrome toolbar.
 
@@ -33,14 +42,11 @@ Edit the Claude Desktop config file:
 - **macOS:** `~/Library/Application Support/Claude/claude_desktop_config.json`
 - **Windows:** `%APPDATA%\Claude\claude_desktop_config.json`
 
-Add the following (replace `/absolute/path/to` with the actual path):
-
 ```json
 {
   "mcpServers": {
     "webmcp-adapter": {
-      "command": "node",
-      "args": ["/absolute/path/to/webmcp-adapter/native-host/index.js"]
+      "command": "webmcp"
     }
   }
 }
@@ -49,17 +55,26 @@ Add the following (replace `/absolute/path/to` with the actual path):
 ## Step 4 — Start the WebSocket service
 
 ```bash
-./start-service.sh start
+webmcp start
 ```
 
-You should see:
+Keep this running in a terminal while using Claude. For auto-start on login, see [Installation](/docs/installation).
 
-```
-✓ Native host started successfully (PID: xxxxx)
-  WebSocket: ws://localhost:3711
+## Step 5 — Install an adapter
+
+Adapters are site-specific plugins. Install one for the site you want to use:
+
+```bash
+# 163 Mail
+webmcp adapter install mail.163.com --reload
+
+# Gmail
+webmcp adapter install mail.google.com --reload
 ```
 
-## Step 5 — Test it
+`--reload` automatically refreshes the Chrome extension after installation.
+
+## Step 6 — Test it
 
 1. Open Chrome and navigate to a supported site (e.g. [mail.163.com](https://mail.163.com))
 2. Wait for the page to fully load (~5 seconds)
@@ -80,21 +95,22 @@ Search my inbox for emails containing "invoice"
 
 If something doesn't work, go through this list:
 
-- [ ] **Service running?** Run `./start-service.sh status` — should show `✓ Native host is running`
+- [ ] **Service running?** Run `webmcp start` in a terminal
 - [ ] **Extension loaded?** Go to `chrome://extensions`, confirm WebMCP Adapter is enabled
+- [ ] **Adapter installed?** Run `webmcp adapter list` — the site's adapter should appear
 - [ ] **Website open?** Open and fully load a supported site in Chrome
-- [ ] **Claude config correct?** Check the path in `claude_desktop_config.json` is absolute and correct
+- [ ] **Claude config correct?** Check that `claude_desktop_config.json` has `"command": "webmcp"`
 - [ ] **Claude restarted?** Restart Claude Desktop after editing the config
 
-## Service management commands
+## Managing adapters
 
 ```bash
-./start-service.sh start     # Start
-./start-service.sh stop      # Stop
-./start-service.sh restart   # Restart
-./start-service.sh status    # Check status
-./start-service.sh logs      # View logs
-./start-service.sh logs -f   # Stream logs in real-time
+webmcp adapter list                            # List installed adapters
+webmcp adapter install <id> --reload           # Install from Hub
+webmcp adapter install --url <url> --reload    # Install from custom URL
+webmcp adapter install --file <path> --reload  # Install from local file
+webmcp adapter remove <id> --reload            # Remove
+webmcp adapter refresh                         # Force-refresh Hub registry cache
 ```
 
 ## Next steps

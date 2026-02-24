@@ -9,20 +9,29 @@
 - Google Chrome
 - [Claude Desktop](https://claude.ai/download)
 
-## 第一步 — 克隆并安装依赖
+## 第一步 — 安装
 
 ```bash
-git clone https://github.com/HeGaoYuan/webmcp-adapter.git
-cd webmcp-adapter
-npm install
+npm install -g webmcp-adapter
 ```
 
-## 第二步 — 安装 Chrome 扩展
+这会全局安装 `webmcp` 命令行工具，并包含 Chrome 扩展包。
 
-1. 打开 Chrome，访问 `chrome://extensions`
+## 第二步 — 加载 Chrome 扩展
+
+找到扩展的安装路径：
+
+```bash
+webmcp extension-path
+# 示例输出：/usr/local/lib/node_modules/webmcp-adapter/extension
+```
+
+然后在 Chrome 中加载：
+
+1. 打开 `chrome://extensions`
 2. 开启右上角的**开发者模式**
 3. 点击**加载已解压的扩展程序**
-4. 选择仓库中的 `extension/` 文件夹
+4. 选择 `webmcp extension-path` 打印的路径
 
 扩展图标会出现在 Chrome 工具栏中。
 
@@ -33,14 +42,11 @@ npm install
 - **macOS：** `~/Library/Application Support/Claude/claude_desktop_config.json`
 - **Windows：** `%APPDATA%\Claude\claude_desktop_config.json`
 
-添加以下内容（将 `/绝对路径/到` 替换为实际路径）：
-
 ```json
 {
   "mcpServers": {
     "webmcp-adapter": {
-      "command": "node",
-      "args": ["/绝对路径/到/webmcp-adapter/native-host/index.js"]
+      "command": "webmcp"
     }
   }
 }
@@ -49,17 +55,26 @@ npm install
 ## 第四步 — 启动 WebSocket 服务
 
 ```bash
-./start-service.sh start
+webmcp start
 ```
 
-看到以下输出说明成功：
+使用 Claude 期间保持此命令在终端中运行。如需开机自启，参见[完整安装](/docs/installation)。
 
-```
-✓ Native host started successfully (PID: xxxxx)
-  WebSocket: ws://localhost:3711
+## 第五步 — 安装 Adapter
+
+Adapter 是针对特定网站的插件，安装你需要使用的网站对应的 adapter：
+
+```bash
+# 163 邮箱
+webmcp adapter install mail.163.com --reload
+
+# Gmail
+webmcp adapter install mail.google.com --reload
 ```
 
-## 第五步 — 测试
+`--reload` 会在安装完成后自动刷新 Chrome 扩展。
+
+## 第六步 — 测试
 
 1. 在 Chrome 中打开已支持的网站（如 [mail.163.com](https://mail.163.com)）
 2. 等待页面完全加载（约 5 秒）
@@ -80,21 +95,22 @@ npm install
 
 如果有问题，逐项排查：
 
-- [ ] **服务在运行？** 执行 `./start-service.sh status` — 应显示 `✓ Native host is running`
+- [ ] **服务在运行？** 在终端执行 `webmcp start`
 - [ ] **扩展已加载？** 在 `chrome://extensions` 确认 WebMCP Adapter 已启用
+- [ ] **Adapter 已安装？** 执行 `webmcp adapter list`，确认目标网站的 adapter 存在
 - [ ] **已打开支持的网站？** 在 Chrome 中打开并等待完全加载
-- [ ] **配置路径正确？** 检查 `claude_desktop_config.json` 中的路径是绝对路径
+- [ ] **配置正确？** 检查 `claude_desktop_config.json` 中是否有 `"command": "webmcp"`
 - [ ] **Claude 已重启？** 修改配置后需要完全退出并重新启动 Claude Desktop
 
-## 服务管理命令
+## Adapter 管理命令
 
 ```bash
-./start-service.sh start     # 启动
-./start-service.sh stop      # 停止
-./start-service.sh restart   # 重启
-./start-service.sh status    # 查看状态
-./start-service.sh logs      # 查看日志
-./start-service.sh logs -f   # 实时查看日志
+webmcp adapter list                                # 列出已安装的 adapter
+webmcp adapter install <id> --reload               # 从 Hub 安装
+webmcp adapter install --url <url> --reload        # 从自定义 URL 安装
+webmcp adapter install --file <path> --reload      # 从本地文件安装
+webmcp adapter remove <id> --reload                # 移除
+webmcp adapter refresh                             # 强制刷新 Hub 注册表缓存
 ```
 
 ## 下一步

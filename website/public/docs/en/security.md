@@ -81,7 +81,7 @@ Claude or another MCP client can call any tool registered by an installed adapte
 2. **Don't run untrusted processes** on the same machine while WebMCP is active.
 3. **Use the `--file` flag** to install from a local, audited copy rather than pulling directly from a URL.
 4. **Check the popup** regularly to see which adapters are active and what tools they expose.
-5. **Remove adapters you no longer use** with `node index.js adapter remove <id> --reload`.
+5. **Remove adapters you no longer use** with `webmcp adapter remove <id> --reload`.
 
 ## Reporting Vulnerabilities
 

@@ -81,7 +81,7 @@ Claude 或其他 MCP 客户端可以调用已安装 adapter 注册的任意工�
 2. **运行 WebMCP 时，不要在同一台机器上运行不受信任的进程。**
 3. **使用 `--file` 标志**从本地已审计的副本安装，而非直接从远程 URL 拉取。
 4. **定期查看弹窗**，了解当前活跃的 adapter 及其暴露的工具列表。
-5. **移除不再使用的 adapter**：`node index.js adapter remove <id> --reload`。
+5. **移除不再使用的 adapter**：`webmcp adapter remove <id> --reload`。
 
 ## 报告安全漏洞
 

@@ -11,21 +11,37 @@ Complete installation and configuration guide.
 | Browser | Google Chrome |
 | AI client | Claude Desktop |
 
-## 1. Install dependencies
+## 1. Install the CLI
 
 ```bash
-cd webmcp-adapter
-npm install
+npm install -g webmcp-adapter
 ```
 
-## 2. Install the Chrome extension
+This installs the `webmcp` command globally. Verify:
+
+```bash
+webmcp --version
+```
+
+## 2. Load the Chrome extension
+
+The extension is bundled inside the npm package. Find its path:
+
+```bash
+webmcp extension-path
+# Example: /usr/local/lib/node_modules/webmcp-adapter/extension
+```
+
+Load it in Chrome:
 
 1. Open `chrome://extensions` in Chrome
 2. Enable **Developer mode** (top-right toggle)
 3. Click **Load unpacked**
-4. Select the `extension/` directory from the repo
+4. Select the path printed above
 
 Note the extension ID shown on the card — you may need it for debugging.
+
+> **Important:** Always load the extension from the path returned by `webmcp extension-path`. This ensures adapter files installed via `webmcp adapter install` are found by the extension.
 
 ## 3. Configure Claude Desktop
 
@@ -42,37 +58,41 @@ Note the extension ID shown on the card — you may need it for debugging.
 {
   "mcpServers": {
     "webmcp-adapter": {
-      "command": "node",
-      "args": ["/absolute/path/to/webmcp-adapter/native-host/index.js"]
+      "command": "webmcp"
     }
   }
 }
 ```
 
-> **Important:** Use the absolute path. Relative paths will not work because Claude Desktop starts the process from a different working directory.
-
-To find the absolute path:
-```bash
-cd webmcp-adapter
-pwd
-# Example output: /Users/yourname/projects/webmcp-adapter
-```
-
-So your `args` would be `["/Users/yourname/projects/webmcp-adapter/native-host/index.js"]`.
+Because `webmcp` is a globally installed CLI command, no absolute paths are needed.
 
 ## 4. Start the WebSocket service
 
 ```bash
-./start-service.sh start
+webmcp start
 ```
 
-Verify it's running:
+Verify it's running by checking that `ws://localhost:3711` is listening:
+
 ```bash
-./start-service.sh status
-# ✓ Native host is running (PID: xxxxx)
+lsof -i :3711
 ```
 
-## 5. Restart Claude Desktop
+## 5. Install adapters
+
+```bash
+webmcp adapter install mail.163.com --reload
+webmcp adapter install mail.google.com --reload
+```
+
+List all available adapters from the Hub:
+
+```bash
+webmcp adapter refresh   # update the local registry cache
+webmcp adapter list      # show installed adapters
+```
+
+## 6. Restart Claude Desktop
 
 After editing the config, fully quit and relaunch Claude Desktop for it to pick up the new MCP server.
 
@@ -92,23 +112,22 @@ Create `~/Library/LaunchAgents/com.webmcp.adapter.plist`:
   <string>com.webmcp.adapter</string>
   <key>ProgramArguments</key>
   <array>
-    <string>/usr/local/bin/node</string>
-    <string>/absolute/path/to/webmcp-adapter/native-host/index.js</string>
-    <string>--service</string>
+    <string>webmcp</string>
+    <string>start</string>
   </array>
   <key>RunAtLoad</key>
   <true/>
   <key>KeepAlive</key>
   <true/>
   <key>StandardOutPath</key>
-  <string>/tmp/webmcp-adapter.log</string>
+  <string>/tmp/webmcp.log</string>
   <key>StandardErrorPath</key>
-  <string>/tmp/webmcp-adapter-error.log</string>
+  <string>/tmp/webmcp.log</string>
 </dict>
 </plist>
 ```
 
-Load the service:
+Load (enable auto-start):
 ```bash
 launchctl load ~/Library/LaunchAgents/com.webmcp.adapter.plist
 ```
@@ -118,26 +137,22 @@ Unload (disable auto-start):
 launchctl unload ~/Library/LaunchAgents/com.webmcp.adapter.plist
 ```
 
-> **Tip:** Run `which node` to find the correct path for the `node` binary.
+> **Tip:** If `launchctl` can't find `webmcp`, use the full path. Run `which webmcp` to find it and replace `<string>webmcp</string>` with the full path like `<string>/usr/local/bin/webmcp</string>`.
 
-## Verifying the installation
+### macOS/Linux — pm2
 
-Run the full system test:
+[pm2](https://pm2.keymetrics.io/) is a popular Node.js process manager:
 
 ```bash
-./test-system.sh
+npm install -g pm2
+pm2 start webmcp -- start
+pm2 save
+pm2 startup   # follow the printed instructions to enable auto-start
 ```
-
-This checks:
-- Node.js dependencies installed
-- WebSocket service running on port 3711
-- Chrome extension connected
-- Tools registered
-- Claude Desktop config present
 
 ## Uninstall
 
 1. Remove from Claude Desktop config — delete the `webmcp-adapter` entry from `claude_desktop_config.json`
-2. Stop the service: `./start-service.sh stop`
+2. Stop the service: kill the `webmcp start` process (or `pm2 stop webmcp`)
 3. Remove the Chrome extension from `chrome://extensions`
-4. Delete the repo directory
+4. Uninstall the package: `npm uninstall -g webmcp-adapter`

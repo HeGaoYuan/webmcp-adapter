@@ -19,16 +19,29 @@ Adapters are stored in `hub/adapters/{domain}/` in the repository. Each adapter 
 | `index.js` | The adapter code |
 | `meta.json` | Metadata: name, description, author, version, verified date |
 
-A central `hub/registry.json` lists all available adapters so the website can discover them.
+A central `hub/registry.json` lists all available adapters so the extension and website can discover them.
+
+## Installing adapters
+
+Adapters are installed locally using the `webmcp` CLI:
+
+```bash
+webmcp adapter install mail.163.com --reload   # from the Hub
+webmcp adapter install --url <url> --reload    # from a custom URL (https only)
+webmcp adapter install --file <path> --reload  # from a local file
+```
+
+The CLI downloads the adapter's `index.js` and writes it to the `extension/adapters/` directory inside the npm package. When Chrome loads the extension, it can inject these local files directly — no network requests at page-load time.
 
 ## Loading lifecycle
 
 When you open a page in Chrome:
 
 1. The extension's content script (`injector.js`) runs on every page
-2. It checks the page's hostname against the `match` arrays of all registered adapters
-3. If a match is found, the adapter's `index.js` is fetched from the Hub and injected into the page
-4. The adapter calls `window.__webmcpRegister()`, and `injector.js` forwards the tool definitions upstream
+2. The background service worker checks the page's hostname against the local `extension/adapters/` directory and the Hub registry
+3. If a locally installed adapter matches the hostname, its `index.js` is injected into the page from the local file
+4. If no local adapter is installed but the Hub has a match, the extension shows an orange `!` badge — run `webmcp adapter install <id> --reload` to install it
+5. The injected adapter calls `window.__webmcpRegister()`, and `injector.js` forwards the tool definitions to the background service worker
 
 ## Isolated world sandbox
 

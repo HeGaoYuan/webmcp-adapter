@@ -26,10 +26,18 @@ import { NativeMessagingBridge } from "./bridge.js";
 import { WebSocket } from "ws";
 
 const WS_PORT = 3711;
-const isServiceMode = process.argv.includes('--service');
 const isAdapterMode = process.argv[2] === 'adapter';
+const isServiceMode = process.argv.includes('--service') || process.argv[2] === 'start';
+const isExtensionPath = process.argv[2] === 'extension-path';
 
 async function main() {
+  // ── extension-path: print the bundled extension directory ───────────────────
+  if (isExtensionPath) {
+    const extensionDir = new URL('../extension', import.meta.url).pathname;
+    console.log(extensionDir);
+    return;
+  }
+
   // ── Adapter CLI mode ────────────────────────────────────────────────────────
   if (isAdapterMode) {
     const { runAdapterCli } = await import("./adapter-cli.js");
@@ -45,7 +53,7 @@ async function main() {
     process.stderr.write(`[WebMCP] Uncaught exception: ${err.message}\n${err.stack}\n`);
   });
   
-  process.on('unhandledRejection', (reason, promise) => {
+  process.on('unhandledRejection', (reason) => {
     process.stderr.write(`[WebMCP] Unhandled rejection: ${reason}\n`);
   });
 
@@ -81,7 +89,7 @@ async function main() {
       if (!isServiceRunning) {
         process.stderr.write("[WebMCP] ERROR: WebSocket service is not running!\n");
         process.stderr.write("[WebMCP] Please start the service first:\n");
-        process.stderr.write("[WebMCP]   ./start-service.sh start\n");
+        process.stderr.write("[WebMCP]   webmcp start\n");
         process.exit(1);
       }
       

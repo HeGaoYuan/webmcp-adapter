@@ -4,6 +4,9 @@
   "description": "Community-driven WebMCP adapter: browser extension + MCP server bridge",
   "type": "module",
   "main": "native-host/index.js",
+  "bin": {
+    "webmcp": "./native-host/index.js"
+  },
   "scripts": {
     "start": "node native-host/index.js",
     "install-host": "node native-host/install.js"

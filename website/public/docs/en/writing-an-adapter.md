@@ -159,11 +159,25 @@ Add an entry to `hub/registry.json`:
 
 ## Step 5 — Test locally
 
+Install your adapter from the local file:
+
+```bash
+webmcp adapter install --file hub/adapters/your.domain.com/index.js --reload
+```
+
+Then verify it works:
+
 1. In Chrome, go to `chrome://extensions` → find WebMCP Adapter → click **Service Worker** to open the console
 2. Navigate to your target website
 3. Watch the console — you should see `Registered X tools for tab NNNNN`
 4. In Claude Desktop, ask: *"List available tools"* — your tools should appear
 5. Test each tool by asking Claude to use it
+
+When you're done iterating, you can remove it:
+
+```bash
+webmcp adapter remove your.domain.com --reload
+```
 
 ## Step 6 — Submit a pull request
 

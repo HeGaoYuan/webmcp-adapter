@@ -157,11 +157,25 @@ description: '返回收件箱中的未读邮件列表。每条包含 id、发件
 
 ## 第五步 — 本地测试
 
+从本地文件安装你的 adapter：
+
+```bash
+webmcp adapter install --file hub/adapters/your.domain.com/index.js --reload
+```
+
+然后验证是否正常工作：
+
 1. 在 Chrome 中进入 `chrome://extensions` → 找到 WebMCP Adapter → 点击 **Service Worker** 打开控制台
 2. 导航到目标网站
 3. 观察控制台 — 应看到 `Registered X tools for tab NNNNN`
 4. 在 Claude Desktop 中问：*"请列出可用的工具"* — 你的工具应该出现
 5. 逐一测试每个工具
+
+调试完成后可以移除：
+
+```bash
+webmcp adapter remove your.domain.com --reload
+```
 
 ## 第六步 — 提交 Pull Request
 
