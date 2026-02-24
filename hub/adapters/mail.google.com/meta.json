@@ -1,0 +1,16 @@
+{
+  "id": "mail.google.com",
+  "name": "Gmail",
+  "description": "Gmail: read emails, search, open messages, download attachments",
+  "author": "webmcp-team",
+  "match": ["mail.google.com"],
+  "version": "2026-02-24T00:00:00Z",
+  "verified_on": "2026-02-24",
+  "homepage": "https://github.com/HeGaoYuan/webmcp-adapter/tree/main/hub/adapters/mail.google.com",
+  "i18n": {
+    "zh": {
+      "name": "Gmail",
+      "description": "Gmail：读取邮件列表、搜索邮件、查看邮件详情、下载附件"
+    }
+  }
+}
