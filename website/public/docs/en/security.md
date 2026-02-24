@@ -75,18 +75,6 @@ Claude or another MCP client can call any tool registered by an installed adapte
 - Tools are scoped to individual browser tabs — an adapter for `mail.google.com` cannot affect other sites
 - You can check which tools are active at any time via the extension popup
 
-## What Was Fixed
-
-The following vulnerabilities were identified and remediated in the codebase:
-
-| Issue | Severity | Fix |
-|---|---|---|
-| Command injection in `openBrowser()` via shell-interpolated URL | Critical | Replaced `exec()` with `execFile()` — URL is passed as a separate argument, never shell-interpreted |
-| Command injection in `fetchViaCurl()` via shell-interpolated URL | Critical | Same fix — `execFile('curl', [url])` instead of template string |
-| `--url` adapter install accepted `file://`, `data:` schemes | High | Now rejects anything that is not `https://` |
-| Adapter id not validated before file path construction | Medium | Regex `^[a-zA-Z0-9][a-zA-Z0-9._-]*$` enforced before `adapters/{id}.js` is used |
-| `homepage` field in registry used as href without validation | Low | URL scheme validated (http/https only) before `chrome.tabs.create()` |
-
 ## Recommendations for Users
 
 1. **Review adapter code before installing** — especially for adapters that access sensitive sites (email, banking, work tools).

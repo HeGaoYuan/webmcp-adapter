@@ -75,18 +75,6 @@ Claude 或其他 MCP 客户端可以调用已安装 adapter 注册的任意工�
 - 工具作用域限定在单个浏览器标签页——`mail.google.com` 的 adapter 不会影响其他网站
 - 可随时通过扩展弹窗检查哪些工具处于活跃状态
 
-## 已修复的问题
-
-以下漏洞已在代码库中被识别并修复：
-
-| 问题 | 严重程度 | 修复方式 |
-|---|---|---|
-| `openBrowser()` 中通过 shell 字符串插值 URL 导致的命令注入 | 严重 | 将 `exec()` 替换为 `execFile()`，URL 作为独立参数传递，不经过 shell 解析 |
-| `fetchViaCurl()` 中通过 shell 字符串插值 URL 导致的命令注入 | 严重 | 同上，改用 `execFile('curl', [url])` |
-| `--url` adapter 安装接受 `file://`、`data:` 等协议 | 高 | 现在仅允许 `https://`，其他协议一律拒绝 |
-| Adapter id 在构造文件路径前未经验证 | 中 | 使用正则 `^[a-zA-Z0-9][a-zA-Z0-9._-]*$` 进行校验 |
-| Registry 中的 `homepage` 字段未经验证就作为链接使用 | 低 | 在 `chrome.tabs.create()` 前校验 URL 协议（仅允许 http/https） |
-
 ## 用户建议
 
 1. **安装前审阅 adapter 代码**——尤其是访问敏感网站（邮件、银行、工作工具）的 adapter。
