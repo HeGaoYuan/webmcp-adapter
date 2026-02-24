@@ -70,6 +70,16 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
     return true;
   }
 
+  // Adapter 被删除后，Service Worker 通知清除本页工具
+  if (msg.type === "clear_tools") {
+    handlers.clear();
+    toolDefs.length = 0;
+    registeredToolNames.clear();
+    chrome.runtime.sendMessage({ type: "register_tools", tools: [] });
+    sendResponse({ ok: true });
+    return true;
+  }
+
   if (msg.type !== "call_tool") return;
 
   const { toolName, args } = msg;

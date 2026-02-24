@@ -12,15 +12,15 @@
 
 const WS_URL = "ws://localhost:3711";
 
-// Hub registry CDN 地址（jsDelivr，从 GitHub 仓库实时分发）
-// 格式：https://cdn.jsdelivr.net/gh/{owner}/{repo}@{branch}/registry.json
-const REGISTRY_URL = "https://cdn.jsdelivr.net/gh/HeGaoYuan/webmcp-adapter@main/hub/registry.json";
+// Hub registry 地址（raw.githubusercontent.com，max-age=300，内容变化后 5 分钟内生效）
+// 不用 jsDelivr：其 max-age=604800（7天）会导致浏览器 HTTP 缓存长期返回旧数据
+const REGISTRY_URL = "https://raw.githubusercontent.com/HeGaoYuan/webmcp-adapter/main/hub/registry.json";
 
-// adapter 代码的 CDN 基础路径
-const ADAPTER_BASE_URL = "https://cdn.jsdelivr.net/gh/HeGaoYuan/webmcp-adapter@main/hub/adapters";
+// adapter 代码基础路径（CLI 下载用，扩展本身不再从网络加载 adapter）
+const ADAPTER_BASE_URL = "https://raw.githubusercontent.com/HeGaoYuan/webmcp-adapter/main/hub/adapters";
 
-// registry 缓存有效期（24小时）
-const REGISTRY_TTL_MS = 24 * 60 * 60 * 1000;
+// registry 在 chrome.storage.local 中的缓存有效期（1小时，配合 raw GitHub 的 5 分钟 HTTP 缓存）
+const REGISTRY_TTL_MS = 60 * 60 * 1000;
 
 // ─── 状态 ──────────────────────────────────────────────────────────────────
 
@@ -82,6 +82,18 @@ function connectToNativeHost() {
         });
       }
     });
+
+    // 延迟扫描所有 tab 的 adapter 状态：处理 extension reload 后 adapter 被删除的情况
+    // （resync_tools 可能把旧工具重新注入，这里再做一次清理校验）
+    setTimeout(() => {
+      chrome.tabs.query({}, (tabs) => {
+        for (const tab of tabs) {
+          if (tab.url && !tab.url.startsWith("chrome://") && !tab.url.startsWith("chrome-extension://")) {
+            injectAdapters(tab.id, tab.url);
+          }
+        }
+      });
+    }, 800);
   });
 
   ws.addEventListener("message", async (event) => {
@@ -131,6 +143,13 @@ async function handleNativeMessage(msg) {
     } catch (err) {
       sendToNative({ type: "call_tool_error", id: msg.id, error: err.message });
     }
+  } else if (msg.type === "reload_extension") {
+    console.log("[WebMCP] Reloading extension by request from native host...");
+    chrome.runtime.reload();
+  } else if (msg.type === "refresh_registry") {
+    doRefreshRegistry()
+      .then(r => console.log(`[WebMCP] Registry refreshed via CLI: ${r.count} adapters`))
+      .catch(err => console.error(`[WebMCP] Registry refresh failed: ${err.message}`));
   }
 }
 
@@ -194,17 +213,17 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
         return;
       }
 
-      // Fallback: check registry by URL (handles cases where popup opened before injectAdapters ran)
+      // Fallback: check registry by URL, then verify the file is NOT locally installed
       const registry = await getCachedRegistry();
       if (registry?.adapters && url) {
         try {
           const hostname = new URL(url).hostname;
           const adapterMeta = registry.adapters.find(a =>
-            a.match.some(d => hostname.includes(d))
+            a.match.some(d => hostname === d || hostname.endsWith(`.${d}`))
           );
           if (adapterMeta) {
-            const stored = await chrome.storage.local.get(`adapter:${adapterMeta.id}`);
-            if (!stored[`adapter:${adapterMeta.id}`]) {
+            const installed = await isAdapterFileInstalled(adapterMeta.id);
+            if (!installed) {
               sendResponse({ state: "available", adapterMeta, isConnected });
               return;
             }
@@ -217,41 +236,18 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     return true;
   }
 
-  // Popup 请求安装 adapter
-  if (msg.type === "install_adapter") {
-    (async () => {
-      const result = await installAdapter(msg.adapterId).catch(err => ({ ok: false, error: err.message }));
-      if (result.ok && msg.tabId && msg.url) {
-        // Clear available-adapter hint and inject immediately
-        tabAvailableAdapter.delete(msg.tabId);
-        clearBadge(msg.tabId);
-        await injectAdapters(msg.tabId, msg.url);
-      }
-      sendResponse(result);
-    })();
-    return true;
-  }
-
-  // Popup 请求卸载 adapter
-  if (msg.type === "uninstall_adapter") {
-    uninstallAdapter(msg.adapterId)
-      .then(() => sendResponse({ ok: true }))
-      .catch(err => sendResponse({ ok: false, error: err.message }));
-    return true;
-  }
-
-  // Popup / 其他页面请求已安装 adapter 列表
-  if (msg.type === "get_installed_adapters") {
-    getInstalledAdapters()
-      .then(list => sendResponse({ ok: true, adapters: list }))
-      .catch(err => sendResponse({ ok: false, error: err.message }));
-    return true;
-  }
-
   // Popup 请求缓存的 registry
   if (msg.type === "get_registry") {
     getCachedRegistry()
       .then(registry => sendResponse({ ok: true, registry }))
+      .catch(err => sendResponse({ ok: false, error: err.message }));
+    return true;
+  }
+
+  // Popup / CLI 请求强制刷新 registry 缓存
+  if (msg.type === "refresh_registry") {
+    doRefreshRegistry()
+      .then(result => sendResponse(result))
       .catch(err => sendResponse({ ok: false, error: err.message }));
     return true;
   }
@@ -283,6 +279,17 @@ chrome.tabs.onRemoved.addListener((tabId) => {
 // ─── Hub Registry 管理 ──────────────────────────────────────────────────────
 
 /**
+ * 清除 registry 缓存并强制重新拉取
+ * @returns {Promise<{ok: boolean, count: number}>}
+ */
+async function doRefreshRegistry() {
+  await chrome.storage.local.remove(["registry", "registry_fetched_at"]);
+  const registry = await fetchAndCacheRegistry();
+  if (!registry) throw new Error("Failed to fetch registry");
+  return { ok: true, count: registry.adapters?.length ?? 0 };
+}
+
+/**
  * 获取缓存的 registry（如已过期则重新拉取）
  * @returns {Promise<object|null>}
  */
@@ -306,7 +313,8 @@ async function getCachedRegistry() {
  */
 async function fetchAndCacheRegistry() {
   try {
-    const resp = await fetch(REGISTRY_URL);
+    // cache: 'no-cache' 绕过浏览器 HTTP 缓存，确保拿到 GitHub 的最新内容
+    const resp = await fetch(REGISTRY_URL, { cache: "no-cache" });
     if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
     const registry = await resp.json();
     await chrome.storage.local.set({
@@ -321,48 +329,22 @@ async function fetchAndCacheRegistry() {
   }
 }
 
-// ─── Adapter 安装 / 卸载 ────────────────────────────────────────────────────
+// ─── Adapter 文件检测 ────────────────────────────────────────────────────────
 
 /**
- * 安装一个 adapter（从 CDN 下载代码并存入 chrome.storage.local）
- * @param {string} adapterId  例如 "mail.163.com"
- * @returns {Promise<{ok: boolean, error?: string}>}
- */
-async function installAdapter(adapterId) {
-  try {
-    const registry = await getCachedRegistry();
-    const meta = registry?.adapters?.find(a => a.id === adapterId) ?? { id: adapterId };
-
-    await chrome.storage.local.set({
-      [`adapter:${adapterId}`]: { meta, installed_at: Date.now() },
-    });
-
-    console.log(`[WebMCP] Adapter installed: ${adapterId}`);
-    return { ok: true };
-  } catch (err) {
-    console.error(`[WebMCP] Failed to install adapter ${adapterId}:`, err.message);
-    return { ok: false, error: err.message };
-  }
-}
-
-/**
- * 卸载一个 adapter
+ * 检查 adapter JS 文件是否已安装到扩展包的 adapters/ 目录
+ * （通过 fetch 扩展内部资源来探测文件是否存在）
  * @param {string} adapterId
+ * @returns {Promise<boolean>}
  */
-async function uninstallAdapter(adapterId) {
-  await chrome.storage.local.remove(`adapter:${adapterId}`);
-  console.log(`[WebMCP] Adapter uninstalled: ${adapterId}`);
-}
-
-/**
- * 获取所有已安装 adapter 的元信息列表
- * @returns {Promise<Array>}
- */
-async function getInstalledAdapters() {
-  const all = await chrome.storage.local.get(null);
-  return Object.entries(all)
-    .filter(([key]) => key.startsWith("adapter:"))
-    .map(([, value]) => value.meta);
+async function isAdapterFileInstalled(adapterId) {
+  try {
+    const url = chrome.runtime.getURL(`adapters/${adapterId}.js`);
+    const resp = await fetch(url);
+    return resp.ok;
+  } catch {
+    return false;
+  }
 }
 
 // ─── Badge 管理 ─────────────────────────────────────────────────────────────
@@ -401,85 +383,59 @@ function clearBadge(tabId) {
 // ─── Adapter 注入 ───────────────────────────────────────────────────────────
 
 /**
- * 检查给定 URL 的 Tab，注入已安装的 adapter；
- * 若有可用但未安装的 adapter，显示通知提示用户
+ * 检查给定 URL 的 Tab，注入已安装的 adapter（本地文件存在则注入）；
+ * 若本地文件不存在但 Hub 有匹配，设橙色 badge 提示用户用 CLI 安装。
  */
 async function injectAdapters(tabId, url) {
   let hostname;
   try { hostname = new URL(url).hostname; } catch { return; }
 
   const registry = await getCachedRegistry();
-  if (!registry?.adapters) return;
+  const adapters = registry?.adapters ?? [];
 
-  for (const adapterMeta of registry.adapters) {
-    const matches = adapterMeta.match.some(domain => hostname === domain || hostname.endsWith(`.${domain}`));
-    if (!matches) continue;
+  // 查找 registry 中匹配当前 hostname 的 adapter
+  const adapterMeta = adapters.find(a =>
+    a.match.some(d => hostname === d || hostname.endsWith(`.${d}`))
+  );
 
-    const stored = await chrome.storage.local.get(`adapter:${adapterMeta.id}`);
-    const adapterData = stored[`adapter:${adapterMeta.id}`];
+  // adapter id：优先用 registry 里的 id，其次用 hostname 本身（兼容本地自定义 adapter）
+  const adapterId = adapterMeta?.id ?? hostname;
 
-    if (adapterData) {
-      // 已安装：注入本地 adapter 文件（MV3 不允许 eval，必须用 files）
-      try {
-        await chrome.scripting.executeScript({
-          target: { tabId },
-          world: "ISOLATED",
-          files: [`adapters/${adapterMeta.id}.js`],
-        });
-        tabAvailableAdapter.delete(tabId); // 注入成功后清除待安装标记
-        console.log(`[WebMCP] Injected adapter "${adapterMeta.id}" into tab ${tabId}`);
-      } catch (err) {
-        console.error(`[WebMCP] Failed to inject adapter "${adapterMeta.id}":`, err.message);
-      }
-    } else {
-      // 未安装：记录可用 adapter 供 popup 查询，同时设橙色 badge + 通知用户
+  // 检查本地文件是否存在
+  const isInstalled = await isAdapterFileInstalled(adapterId);
+
+  if (isInstalled) {
+    // 已安装：直接注入
+    try {
+      await chrome.scripting.executeScript({
+        target: { tabId },
+        world: "ISOLATED",
+        files: [`adapters/${adapterId}.js`],
+      });
+      tabAvailableAdapter.delete(tabId);
+      console.log(`[WebMCP] Injected adapter "${adapterId}" into tab ${tabId}`);
+    } catch (err) {
+      console.error(`[WebMCP] Failed to inject adapter "${adapterId}":`, err.message);
+    }
+  } else {
+    // 未安装：清除该 tab 中残留的工具注册（可能是 adapter 刚被删除后 extension 重载的情况）
+    if (toolRegistry.has(tabId)) {
+      toolRegistry.delete(tabId);
+      chrome.tabs.sendMessage(tabId, { type: "clear_tools" }, () => void chrome.runtime.lastError);
+      sendToNative({ type: "tools_updated", tabId, tools: [] });
+      console.log(`[WebMCP] Cleared stale tools for tab ${tabId} (adapter "${adapterId}" not installed)`);
+    }
+
+    if (adapterMeta) {
+      // Hub 有匹配但未安装：设橙色 badge，等用户通过 CLI 安装
       tabAvailableAdapter.set(tabId, adapterMeta);
       setBadgeAvailable(tabId, adapterMeta.name);
-      notifyAdapterAvailable(adapterMeta, tabId);
+    } else {
+      // 无任何匹配，清除 badge
+      tabAvailableAdapter.delete(tabId);
+      clearBadge(tabId);
     }
   }
-}
-
-/**
- * 显示通知，告知用户有可用但未安装的 adapter
- */
-function notifyAdapterAvailable(adapterMeta, tabId) {
-  const notificationId = `adapter-available:${adapterMeta.id}`;
-
-  chrome.notifications.create(notificationId, {
-    type: "basic",
-    iconUrl: "icons/icon48.png",
-    title: "WebMCP：发现可用适配器",
-    message: `「${adapterMeta.name}」适配器可以让 AI 助手操作此网站。点击安装。`,
-    buttons: [{ title: "安装" }, { title: "忽略" }],
-    requireInteraction: false,
-  });
-
-  // 点击通知主体
-  chrome.notifications.onClicked.addListener(function onClicked(id) {
-    if (id !== notificationId) return;
-    chrome.notifications.onClicked.removeListener(onClicked);
-    installAdapter(adapterMeta.id).then(() => {
-      clearBadge(tabId);
-      injectAdapters(tabId, `https://${adapterMeta.id}`);
-    });
-  });
-
-  // 点击通知按钮
-  chrome.notifications.onButtonClicked.addListener(function onButtonClicked(id, btnIdx) {
-    if (id !== notificationId) return;
-    chrome.notifications.onButtonClicked.removeListener(onButtonClicked);
-    chrome.notifications.clear(notificationId);
-    if (btnIdx === 0) {
-      installAdapter(adapterMeta.id).then(() => {
-        clearBadge(tabId);
-        injectAdapters(tabId, `https://${adapterMeta.id}`);
-      });
-    } else {
-      // 用户点忽略，清除 badge
-      clearBadge(tabId);
-    }
-  });
 }
 
 chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {

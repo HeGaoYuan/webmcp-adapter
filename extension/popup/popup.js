@@ -55,7 +55,7 @@ function renderActive(tools) {
   showOnly("stateActive");
 }
 
-function renderAvailable(adapterMeta, tabId, url) {
+function renderAvailable(adapterMeta) {
   setHeaderBadge("available", "发现可用适配器");
 
   document.getElementById("adapterName").textContent = adapterMeta.name ?? adapterMeta.id;
@@ -66,40 +66,32 @@ function renderAvailable(adapterMeta, tabId, url) {
   const verifiedEl = document.getElementById("adapterVerified");
   verifiedEl.hidden = !adapterMeta.verified_on;
 
-  // View source
-  const btnSource = document.getElementById("btnViewSource");
-  btnSource.onclick = () => openTab(adapterMeta.homepage ?? GITHUB_REPO);
+  // Show CLI install command
+  const cmd = `node index.js adapter install ${adapterMeta.id} --reload`;
+  document.getElementById("installCmd").textContent = cmd;
 
-  // Install
-  const btnInstall = document.getElementById("btnInstall");
-  btnInstall.onclick = async () => {
-    btnInstall.disabled = true;
-    btnInstall.textContent = "安装中…";
-    const result = await chrome.runtime.sendMessage({
-      type: "install_adapter",
-      adapterId: adapterMeta.id,
-      tabId,
-      url,
+  // Copy button
+  const btnCopy = document.getElementById("btnCopyCmd");
+  btnCopy.onclick = () => {
+    navigator.clipboard.writeText(cmd).then(() => {
+      btnCopy.textContent = "已复制";
+      btnCopy.classList.add("copied");
+      setTimeout(() => {
+        btnCopy.textContent = "复制";
+        btnCopy.classList.remove("copied");
+      }, 1500);
     });
-    if (result?.ok) {
-      renderInstallSuccess(tabId);
-    } else {
-      btnInstall.disabled = false;
-      btnInstall.textContent = "安装适配器";
-      alert(`安装失败：${result?.error ?? "未知错误"}`);
-    }
   };
+
+  // View source
+  document.getElementById("btnViewSource").onclick = () =>
+    openTab(adapterMeta.homepage ?? GITHUB_REPO);
 
   showOnly("stateAvailable");
 }
 
-function renderInstallSuccess(tabId) {
-  setHeaderBadge("active", "安装成功");
-  document.getElementById("btnReload").onclick = () => {
-    chrome.tabs.reload(tabId);
-    window.close();
-  };
-  showOnly("stateInstallSuccess");
+function renderInstallSuccess() {
+  // no-op: install is now done via CLI, not in-popup
 }
 
 function renderNone() {
@@ -131,6 +123,33 @@ async function init() {
   document.getElementById("btnNewIssue").onclick = () => openTab(GITHUB_NEW_ISSUE);
   document.getElementById("btnContribute").onclick = () => openTab(GITHUB_CONTRIBUTING);
 
+  // Refresh registry button
+  const linkRefresh = document.getElementById("linkRefresh");
+  linkRefresh.onclick = async () => {
+    linkRefresh.textContent = "刷新中…";
+    linkRefresh.classList.add("link-muted");
+    try {
+      const result = await chrome.runtime.sendMessage({ type: "refresh_registry" });
+      if (result?.ok) {
+        linkRefresh.textContent = `✓ ${result.count} 个适配器`;
+        setTimeout(() => {
+          linkRefresh.textContent = "↺ 刷新列表";
+          linkRefresh.classList.remove("link-muted");
+          init(); // re-render with fresh registry
+        }, 1200);
+      } else {
+        linkRefresh.textContent = "刷新失败";
+        setTimeout(() => {
+          linkRefresh.textContent = "↺ 刷新列表";
+          linkRefresh.classList.remove("link-muted");
+        }, 2000);
+      }
+    } catch {
+      linkRefresh.textContent = "↺ 刷新列表";
+      linkRefresh.classList.remove("link-muted");
+    }
+  };
+
   showOnly("stateLoading");
 
   // Get current tab
@@ -160,7 +179,7 @@ async function init() {
   if (info.state === "active") {
     renderActive(info.tools);
   } else if (info.state === "available") {
-    renderAvailable(info.adapterMeta, tab.id, tab.url);
+    renderAvailable(info.adapterMeta);
   } else {
     renderNone();
   }

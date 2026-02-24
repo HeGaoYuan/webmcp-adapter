@@ -27,8 +27,16 @@ import { WebSocket } from "ws";
 
 const WS_PORT = 3711;
 const isServiceMode = process.argv.includes('--service');
+const isAdapterMode = process.argv[2] === 'adapter';
 
 async function main() {
+  // ── Adapter CLI mode ────────────────────────────────────────────────────────
+  if (isAdapterMode) {
+    const { runAdapterCli } = await import("./adapter-cli.js");
+    await runAdapterCli(process.argv.slice(3));
+    return;
+  }
+
   process.stderr.write("[WebMCP] Starting native host...\n");
   process.stderr.write(`[WebMCP] Mode: ${isServiceMode ? 'Service' : 'MCP'}\n`);
   

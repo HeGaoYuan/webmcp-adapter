@@ -76,8 +76,8 @@ export class NativeMessagingBridge extends EventEmitter {
             if (msg.type === 'tools_updated' || msg.type === 'call_tool_result' || msg.type === 'call_tool_error' || msg.type === 'get_active_tab_result') {
               // 来自Chrome扩展的消息
               this._handleExtensionMessage(msg);
-            } else if (msg.type === 'call_tool' || msg.type === 'get_active_tab' || msg.type === 'open_browser') {
-              // 来自MCP进程的请求，需要转发给Chrome扩展或处理系统命令
+            } else if (msg.type === 'call_tool' || msg.type === 'get_active_tab' || msg.type === 'open_browser' || msg.type === 'reload_extension' || msg.type === 'refresh_registry') {
+              // 来自MCP进程或CLI的请求，需要转发给Chrome扩展或处理系统命令
               this._handleMcpRequest(msg);
             } else {
               process.stderr.write(`[Bridge] Unknown message type: ${msg.type}\n`);
@@ -215,6 +215,12 @@ export class NativeMessagingBridge extends EventEmitter {
       } catch (err) {
         this._broadcast({ type: 'call_tool_error', id: msg.id, error: err.message });
       }
+    } else if (msg.type === 'reload_extension') {
+      process.stderr.write('[Bridge] Forwarding reload_extension to Chrome extension\n');
+      this._send({ type: 'reload_extension' });
+    } else if (msg.type === 'refresh_registry') {
+      process.stderr.write('[Bridge] Forwarding refresh_registry to Chrome extension\n');
+      this._send({ type: 'refresh_registry' });
     }
   }
 
