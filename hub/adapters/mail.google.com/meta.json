@@ -4,7 +4,7 @@
   "description": "Gmail: read emails, search, open messages, download attachments",
   "author": "webmcp-team",
   "match": ["mail.google.com"],
-  "version": "2026-02-24T00:00:00Z",
+  "version": "2026-02-24T08:15:35Z",
   "verified_on": "2026-02-24",
   "homepage": "https://github.com/HeGaoYuan/webmcp-adapter/tree/main/hub/adapters/mail.google.com",
   "i18n": {
