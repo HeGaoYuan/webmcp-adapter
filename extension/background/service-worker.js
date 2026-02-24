@@ -260,7 +260,17 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     toolRegistry.set(tabId, msg.tools);
     console.log(`[WebMCP] Tab ${tabId} registered ${msg.tools.length} tools`);
     sendToNative({ type: "tools_updated", tabId, tools: msg.tools });
-    setBadgeActive(tabId, msg.tools.length);
+    if (msg.tools.length > 0) {
+      setBadgeActive(tabId, msg.tools.length);
+    } else {
+      // Don't show "0 tools ready" — check if there's a known available adapter
+      const available = tabAvailableAdapter.get(tabId);
+      if (available) {
+        setBadgeAvailable(tabId, available.name);
+      } else {
+        clearBadge(tabId);
+      }
+    }
     sendResponse({ ok: true });
   }
 
