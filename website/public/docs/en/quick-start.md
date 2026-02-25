@@ -12,7 +12,7 @@ Get WebMCP Adapter running in 5 minutes.
 ## Step 1 — Install
 
 ```bash
-npm install -g webmcp-adapter
+npm install -g github:HeGaoYuan/webmcp-adapter
 ```
 
 This installs the `webmcp` CLI globally and includes the Chrome extension bundle.
@@ -33,11 +33,30 @@ Then load it in Chrome:
 3. Click **Load unpacked**
 4. Select the path printed by `webmcp extension-path`
 
-The extension icon will appear in your Chrome toolbar.
+## Step 3 — Start the WebSocket service
 
-## Step 3 — Configure Claude Desktop
+```bash
+webmcp service start -d
+```
 
-Edit the Claude Desktop config file:
+This starts the bridge in the background. Verify it's running:
+
+```bash
+webmcp service status
+```
+
+## Step 4 — Install an adapter
+
+Adapters are site-specific plugins:
+
+```bash
+webmcp adapter install mail.163.com --reload
+webmcp adapter install mail.google.com --reload
+```
+
+## Step 5 — Configure Claude Desktop
+
+Edit the config file:
 
 - **macOS:** `~/Library/Application Support/Claude/claude_desktop_config.json`
 - **Windows:** `%APPDATA%\Claude\claude_desktop_config.json`
@@ -46,74 +65,41 @@ Edit the Claude Desktop config file:
 {
   "mcpServers": {
     "webmcp-adapter": {
-      "command": "webmcp"
+      "command": "webmcp",
+      "args": ["mcp"]
     }
   }
 }
 ```
 
-## Step 4 — Start the WebSocket service
-
-```bash
-webmcp start
-```
-
-Keep this running in a terminal while using Claude. For auto-start on login, see [Installation](/docs/installation).
-
-## Step 5 — Install an adapter
-
-Adapters are site-specific plugins. Install one for the site you want to use:
-
-```bash
-# 163 Mail
-webmcp adapter install mail.163.com --reload
-
-# Gmail
-webmcp adapter install mail.google.com --reload
-```
-
-`--reload` automatically refreshes the Chrome extension after installation.
+Restart Claude Desktop after saving.
 
 ## Step 6 — Test it
 
-1. Open Chrome and navigate to a supported site (e.g. [mail.163.com](https://mail.163.com))
-2. Wait for the page to fully load (~5 seconds)
-3. Open (or restart) Claude Desktop
-4. Ask Claude:
-
-```
-List the available tools
-```
-
-You should see tools like `search_emails`, `get_unread_emails`, etc. Then try:
-
-```
-Search my inbox for emails containing "invoice"
-```
+1. Open a supported site in Chrome (e.g. [mail.163.com](https://mail.163.com)) and wait for it to load
+2. Ask Claude: `List the available tools`
+3. You should see tools like `search_emails`, `get_unread_emails`, etc.
 
 ## Verification checklist
 
-If something doesn't work, go through this list:
+- [ ] `webmcp service status` shows service is running
+- [ ] Extension is enabled at `chrome://extensions`
+- [ ] `webmcp adapter list` shows the adapter for your site
+- [ ] Supported site is open in Chrome
+- [ ] `claude_desktop_config.json` has `"command": "webmcp", "args": ["mcp"]`
+- [ ] Claude Desktop was restarted after config change
 
-- [ ] **Service running?** Run `webmcp start` in a terminal
-- [ ] **Extension loaded?** Go to `chrome://extensions`, confirm WebMCP Adapter is enabled
-- [ ] **Adapter installed?** Run `webmcp adapter list` — the site's adapter should appear
-- [ ] **Website open?** Open and fully load a supported site in Chrome
-- [ ] **Claude config correct?** Check that `claude_desktop_config.json` has `"command": "webmcp"`
-- [ ] **Claude restarted?** Restart Claude Desktop after editing the config
-
-## Managing adapters
+## Common service commands
 
 ```bash
-webmcp adapter list                            # List installed adapters
-webmcp adapter install <id> --reload           # Install from Hub
-webmcp adapter install --url <url> --reload    # Install from custom URL
-webmcp adapter install --file <path> --reload  # Install from local file
-webmcp adapter remove <id> --reload            # Remove
-webmcp adapter refresh                         # Force-refresh Hub registry cache
+webmcp service start -d    # Start in background
+webmcp service stop        # Stop background service
+webmcp service status      # Check status
+webmcp service logs -f     # Stream live logs
 ```
 
 ## Next steps
 
-- [Installation](/docs/installation) — auto-start on login, Windows setup
+- [CLI Reference](/docs/cli-reference) — full command documentation
+- [Installation](/docs/installation) — auto-start on login, multiple AI clients
 - [Troubleshooting](/docs/troubleshooting) — if something isn't working

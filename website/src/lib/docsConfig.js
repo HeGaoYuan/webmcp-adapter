@@ -12,10 +12,18 @@ export const docsSidebar = [
     titleEn: 'Core Concepts',
     titleZh: '核心概念',
     items: [
-      { slug: 'architecture',    titleEn: 'Architecture',    titleZh: '架构' },
-      { slug: 'how-it-works',    titleEn: 'How It Works',    titleZh: '工作原理' },
-      { slug: 'adapter-system',       titleEn: 'Adapter System',              titleZh: 'Adapter 体系' },
+      { slug: 'architecture',          titleEn: 'Architecture',               titleZh: '架构' },
+      { slug: 'how-it-works',          titleEn: 'How It Works',               titleZh: '工作原理' },
+      { slug: 'adapter-system',        titleEn: 'Adapter System',             titleZh: 'Adapter 体系' },
       { slug: 'vs-browser-automation', titleEn: 'vs. Browser Automation MCPs', titleZh: '与浏览器自动化 MCP 对比' },
+    ],
+  },
+  {
+    titleEn: 'Reference',
+    titleZh: '参考',
+    items: [
+      { slug: 'cli-reference',      titleEn: 'CLI Reference',      titleZh: 'CLI 参考' },
+      { slug: 'api-reference',      titleEn: 'API Reference',      titleZh: 'API 参考' },
     ],
   },
   {
@@ -23,7 +31,6 @@ export const docsSidebar = [
     titleZh: '开发者',
     items: [
       { slug: 'writing-an-adapter', titleEn: 'Writing an Adapter', titleZh: '编写 Adapter' },
-      { slug: 'api-reference',      titleEn: 'API Reference',      titleZh: 'API 参考' },
     ],
   },
   {

@@ -4,56 +4,50 @@ Diagnose and fix the most common issues.
 
 ## Quick diagnostics
 
-Check whether the service is running:
-
 ```bash
-lsof -i :3711   # should show a node process listening
+webmcp service status    # is the service running?
+webmcp adapter list      # are adapters installed?
 ```
 
-View live service logs (stderr output from `webmcp start`). If you started it with pm2:
+View live service logs:
 ```bash
-pm2 logs webmcp
-```
-
-Or check the Claude Desktop MCP log:
-```bash
-# macOS
-tail -f ~/Library/Logs/Claude/mcp-server-webmcp-adapter.log
+webmcp service logs -f
 ```
 
 ---
 
 ## Issue: Service won't start — "Port 3711 is already in use"
 
-Another process is holding port 3711 (possibly a previous service instance).
+A previous service instance is still running.
 
 ```bash
 # Find and kill the process
 lsof -ti :3711 | xargs kill -9
 
 # Start fresh
-webmcp start
+webmcp service start -d
 ```
 
 ---
 
 ## Issue: Chrome extension shows ERR\_CONNECTION\_REFUSED
 
-The extension cannot connect to the WebSocket service — the service is not running.
+The WebSocket service is not running.
 
 ```bash
-webmcp start
+webmcp service start -d
+webmcp service status
 ```
 
 ---
 
 ## Issue: Tool list is empty in Claude Desktop
 
-Claude sees no tools. Work through this checklist:
+Work through this checklist:
 
 1. **Is the service running?**
    ```bash
-   lsof -i :3711
+   webmcp service status
    ```
 2. **Is an adapter installed for the site you have open?**
    ```bash
@@ -67,36 +61,36 @@ Claude sees no tools. Work through this checklist:
 
 ## Issue: Tool calls time out
 
-Claude calls a tool but the request hangs or returns a timeout error.
+Check the live service log while triggering the tool call:
 
-Check the Claude Desktop log while triggering the tool call:
+```bash
+webmcp service logs -f
+```
 
+Also check the Claude Desktop MCP log:
 ```bash
 # macOS
 tail -f ~/Library/Logs/Claude/mcp-server-webmcp-adapter.log
 ```
 
-Also open the Chrome extension Service Worker console:
-`chrome://extensions` → WebMCP Adapter → **Service Worker**
-
 Things to look for:
-- Is the WebSocket service receiving the call? (`call_tool` message should appear)
-- Is the Chrome extension responding? (look for `call_tool_result` or `call_tool_error`)
+- Is the service receiving the call? (`call_tool` message should appear)
+- Is the extension responding? (look for `call_tool_result` or `call_tool_error`)
 - Is the target tab still open and on the correct page?
 
 ---
 
 ## Issue: Tools disappear after navigating inside the site
 
-When you navigate to a new page, the adapter is re-injected. This takes 2–3 seconds. Wait, then re-trigger the tool call.
+When you navigate to a new page, the adapter re-injects itself (~2–3 seconds). Wait, then retry.
 
-If the extension console shows *no* registration after navigation, the new page's hostname may not match the adapter's `match` list.
+If the extension console shows no registration after navigation, the new page's hostname may not match the adapter's `match` list.
 
 ---
 
-## Issue: Claude Desktop doesn't connect at startup
+## Issue: Claude Desktop doesn't connect
 
-Verify the config file content:
+Verify the config:
 
 ```bash
 # macOS
@@ -104,15 +98,15 @@ cat ~/Library/Application\ Support/Claude/claude_desktop_config.json
 ```
 
 Check:
-- `"command": "webmcp"` is present
+- `"command": "webmcp"` and `"args": ["mcp"]` are present
 - The JSON is valid (no trailing commas, no syntax errors)
-- `webmcp` is in your PATH: run `which webmcp` in a terminal
+- `webmcp` is in your PATH: `which webmcp`
 
 ---
 
-## Issue: `webmcp adapter install` can't download from GitHub
+## Issue: `webmcp adapter install` fails with "fetch failed"
 
-If you're behind a proxy, `fetch` in Node.js may not respect system proxy settings. The CLI automatically falls back to `curl`, which does. Set the proxy environment variable:
+You may be behind a proxy. The CLI falls back to `curl` automatically, but if curl also fails, set the proxy:
 
 ```bash
 export HTTPS_PROXY=http://127.0.0.1:<port>
@@ -123,9 +117,9 @@ webmcp adapter install mail.163.com --reload
 
 ## Viewing logs
 
-| Log source | How to view |
+| Source | Command |
 |---|---|
-| WebSocket service | stderr of `webmcp start`, or `pm2 logs webmcp` |
+| WebSocket service | `webmcp service logs -f` |
 | Chrome Extension | `chrome://extensions` → WebMCP Adapter → **Service Worker** |
 | Claude Desktop MCP | `tail -f ~/Library/Logs/Claude/mcp-server-webmcp-adapter.log` |
 
@@ -134,7 +128,7 @@ webmcp adapter install mail.163.com --reload
 ## Still stuck?
 
 Open an issue on [GitHub](https://github.com/HeGaoYuan/webmcp-adapter/issues) and include:
-- Output of `lsof -i :3711`
+- Output of `webmcp service status`
 - Chrome extension Service Worker console output
-- Your `claude_desktop_config.json` (redact any sensitive paths if needed)
-- macOS: contents of `~/Library/Logs/Claude/mcp-server-webmcp-adapter.log`
+- Your `claude_desktop_config.json` (redact sensitive paths if needed)
+- macOS: `~/Library/Logs/Claude/mcp-server-webmcp-adapter.log`
