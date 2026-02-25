@@ -1,10 +1,85 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import DocsSidebar from '../components/DocsSidebar'
 import { useLang } from '../lib/LanguageContext'
 import { docsSidebar, defaultSlug, findDocItem } from '../lib/docsConfig'
+
+// ─── Heading ID helpers ───────────────────────────────────────────────────────
+
+function slugify(text) {
+  return text
+    .replace(/`[^`]*`/g, '')        // strip inline code
+    .replace(/[*_[\]()#]/g, '')     // strip markdown symbols
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, '-')
+    .replace(/[^\w\u4e00-\u9fff-]/g, '') // keep word chars, Chinese, hyphens
+    .replace(/^-+|-+$/g, '')
+}
+
+function extractHeadings(markdown) {
+  const headings = []
+  for (const line of markdown.split('\n')) {
+    const m = line.match(/^(#{2,3})\s+(.+)$/)
+    if (m) {
+      const text = m[2].replace(/`[^`]*`/g, s => s.slice(1, -1)) // unwrap inline code for display
+      headings.push({ level: m[1].length, text, id: slugify(m[2]) })
+    }
+  }
+  return headings
+}
+
+// Custom heading renderers that inject id attributes
+const headingComponents = {
+  h1: ({ children }) => <h1 id={slugify(String(children))}>{children}</h1>,
+  h2: ({ children }) => <h2 id={slugify(String(children))}>{children}</h2>,
+  h3: ({ children }) => <h3 id={slugify(String(children))}>{children}</h3>,
+}
+
+// ─── Right TOC ────────────────────────────────────────────────────────────────
+
+function DocsToc({ headings, activeId, lang }) {
+  if (!headings.length) return null
+
+  const handleClick = (e, id) => {
+    e.preventDefault()
+    const el = document.getElementById(id)
+    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  }
+
+  return (
+    <aside className="hidden xl:block w-48 flex-shrink-0 sticky top-20 self-start pt-6">
+      <div className="text-[11px] font-semibold text-white/35 uppercase tracking-widest mb-3">
+        {lang === 'en' ? 'On this page' : '本页目录'}
+      </div>
+      <nav>
+        <ul className="space-y-0.5">
+          {headings.map(h => (
+            <li key={h.id}>
+              <a
+                href={`#${h.id}`}
+                onClick={e => handleClick(e, h.id)}
+                className={`block text-[13px] leading-snug py-0.5 transition-colors ${
+                  h.level === 3 ? 'pl-3' : ''
+                } ${
+                  activeId === h.id
+                    ? 'text-accent'
+                    : 'text-white/40 hover:text-white/80'
+                }`}
+              >
+                {h.text}
+              </a>
+            </li>
+          ))}
+        </ul>
+      </nav>
+    </aside>
+  )
+}
+
+// ─── Main Docs page ───────────────────────────────────────────────────────────
 
 export default function Docs() {
   const { slug } = useParams()
@@ -14,6 +89,8 @@ export default function Docs() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [sidebarOpen, setSidebarOpen] = useState(false)
+  const [headings, setHeadings] = useState([])
+  const [activeId, setActiveId] = useState('')
 
   const currentSlug = slug || defaultSlug
 
@@ -22,21 +99,23 @@ export default function Docs() {
     if (!slug) navigate(`/docs/${defaultSlug}`, { replace: true })
   }, [slug, navigate])
 
+  // Fetch markdown content
   useEffect(() => {
     setLoading(true)
     setError(null)
+    setHeadings([])
+    setActiveId('')
     fetch(`/docs/${lang}/${currentSlug}.md`)
       .then(res => {
         if (!res.ok) throw new Error(`${res.status}`)
         return res.text()
       })
-      .then(text => { setContent(text); setLoading(false) })
+      .then(text => { setContent(text); setHeadings(extractHeadings(text)); setLoading(false) })
       .catch(() => {
-        // fallback to English if zh not found
         if (lang === 'zh') {
           return fetch(`/docs/en/${currentSlug}.md`)
             .then(r => r.ok ? r.text() : Promise.reject())
-            .then(text => { setContent(text); setLoading(false) })
+            .then(text => { setContent(text); setHeadings(extractHeadings(text)); setLoading(false) })
             .catch(() => { setError(true); setLoading(false) })
         }
         setError(true)
@@ -44,19 +123,35 @@ export default function Docs() {
       })
   }, [lang, currentSlug])
 
+  // Active heading tracking via scroll position
+  useEffect(() => {
+    if (!headings.length) return
+    const onScroll = () => {
+      const scrollY = window.scrollY + 100 // offset for fixed header
+      let current = headings[0]?.id ?? ''
+      for (const { id } of headings) {
+        const el = document.getElementById(id)
+        if (el && el.offsetTop <= scrollY) current = id
+      }
+      setActiveId(current)
+    }
+    window.addEventListener('scroll', onScroll, { passive: true })
+    onScroll()
+    return () => window.removeEventListener('scroll', onScroll)
+  }, [headings])
+
   // Prev / Next navigation
   const allItems = docsSidebar.flatMap(g => g.items)
   const currentIdx = allItems.findIndex(i => i.slug === currentSlug)
   const prev = currentIdx > 0 ? allItems[currentIdx - 1] : null
   const next = currentIdx < allItems.length - 1 ? allItems[currentIdx + 1] : null
-
   const itemTitle = (item) => lang === 'en' ? item.titleEn : item.titleZh
 
   return (
-    <div className="max-w-6xl mx-auto px-4 sm:px-6 pt-20 pb-16">
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 pt-20 pb-16">
       <div className="flex gap-8 min-h-[calc(100vh-8rem)]">
 
-        {/* Desktop sidebar */}
+        {/* Left sidebar — desktop */}
         <aside className="hidden md:block sticky top-20 self-start pt-6">
           <DocsSidebar />
         </aside>
@@ -108,7 +203,10 @@ export default function Docs() {
 
           {!loading && !error && (
             <div className="prose-dark">
-              <ReactMarkdown remarkPlugins={[remarkGfm]}>
+              <ReactMarkdown
+                remarkPlugins={[remarkGfm]}
+                components={headingComponents}
+              >
                 {content}
               </ReactMarkdown>
             </div>
@@ -145,6 +243,10 @@ export default function Docs() {
             </div>
           )}
         </main>
+
+        {/* Right TOC — only on xl screens */}
+        <DocsToc headings={headings} activeId={activeId} lang={lang} />
+
       </div>
     </div>
   )
