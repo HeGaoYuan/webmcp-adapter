@@ -13,3 +13,6 @@ native-host.log
 # IDE
 .vscode/
 .idea/
+
+# website dist zip
+dist.zip
