@@ -1,7 +1,7 @@
 export const translations = {
   en: {
     nav: {
-      adapters: 'Adapters',
+      adapters: 'Adapter Hub',
       docs: 'Docs',
       github: 'GitHub',
     },
@@ -76,7 +76,7 @@ export const translations = {
 
   zh: {
     nav: {
-      adapters: 'Adapter 列表',
+      adapters: 'Adapter Hub',
       docs: '文档',
       github: 'GitHub',
     },
