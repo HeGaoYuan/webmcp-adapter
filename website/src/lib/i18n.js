@@ -17,6 +17,7 @@ export const translations = {
       statsWebsites: 'Websites possible',
       statsChanges: 'Website changes needed',
       howTitle: 'How it works',
+      howSubtitle: 'Click to see a live demo of the full request flow',
       step1Title: 'Install Chrome Extension',
       step1Desc:
         'The extension loads adapters and bridges your browser to the MCP server.',
@@ -83,6 +84,7 @@ export const translations = {
       statsWebsites: '理论可支持网站数',
       statsChanges: '需要修改网站代码',
       howTitle: '工作原理',
+      howSubtitle: '点击查看完整请求链路的实时演示',
       step1Title: '安装 Chrome 扩展',
       step1Desc: '扩展加载 adapter，并在浏览器与 MCP 服务之间建立桥接。',
       step2Title: '配置 Claude Desktop',

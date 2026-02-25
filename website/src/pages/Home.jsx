@@ -2,9 +2,10 @@ import { Link } from 'react-router-dom'
 import { useEffect, useState } from 'react'
 import { fetchRegistry, getContributeUrl, GITHUB_REPO } from '../lib/github'
 import { useLang } from '../lib/LanguageContext'
+import HowItWorksAnimation from '../components/HowItWorksAnimation'
 
 export default function Home() {
-  const { t } = useLang()
+  const { t, lang } = useLang()
   const [adapterCount, setAdapterCount] = useState('—')
 
   useEffect(() => {
@@ -78,87 +79,14 @@ export default function Home() {
         </div>
       </section>
 
-      {/* How it works */}
+      {/* How it works — animated demo */}
       <section className="py-24 px-4 sm:px-6">
         <div className="max-w-6xl mx-auto">
           <div className="text-center mb-16">
             <h2 className="text-2xl sm:text-3xl font-bold text-white">{t.home.howTitle}</h2>
+            <p className="text-gray-500 text-sm mt-3">{t.home.howSubtitle}</p>
           </div>
-
-          <div className="grid md:grid-cols-3 gap-6">
-            {[
-              {
-                step: '01',
-                title: t.home.step1Title,
-                desc: t.home.step1Desc,
-                icon: (
-                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-                    <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" />
-                  </svg>
-                ),
-              },
-              {
-                step: '02',
-                title: t.home.step2Title,
-                desc: t.home.step2Desc,
-                icon: (
-                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-                    <rect x="2" y="3" width="20" height="14" rx="2" />
-                    <path d="M8 21h8M12 17v4" />
-                  </svg>
-                ),
-              },
-              {
-                step: '03',
-                title: t.home.step3Title,
-                desc: t.home.step3Desc,
-                icon: (
-                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-                    <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
-                  </svg>
-                ),
-              },
-            ].map(({ step, title, desc, icon }) => (
-              <div key={step} className="bg-surface border border-border rounded-xl p-6">
-                <div className="flex items-center gap-3 mb-4">
-                  <div className="w-9 h-9 rounded-lg bg-accent/10 border border-accent/20 flex items-center justify-center text-accent">
-                    {icon}
-                  </div>
-                  <span className="text-accent font-mono text-xs font-medium">{step}</span>
-                </div>
-                <h3 className="text-white font-semibold mb-3">{title}</h3>
-                <p className="text-gray-400 text-sm leading-relaxed">{desc}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* Architecture */}
-      <section className="py-16 px-4 sm:px-6">
-        <div className="max-w-3xl mx-auto">
-          <h2 className="text-xl font-bold text-white text-center mb-8">{t.home.archTitle}</h2>
-          <div className="bg-surface border border-border rounded-xl p-6 font-mono text-sm">
-            <div className="text-gray-400 space-y-2">
-              <div className="flex items-center gap-2 flex-wrap">
-                <span className="text-accent">Claude Desktop</span>
-                <span className="text-muted">(stdio)</span>
-                <span className="text-muted">→</span>
-                <span className="text-accent">MCP Process</span>
-                <span className="text-muted">(WebSocket)</span>
-                <span className="text-muted">→</span>
-                <span className="text-accent">WebSocket Server</span>
-              </div>
-              <div className="text-muted pl-4">↓</div>
-              <div className="flex items-center gap-2 pl-8 flex-wrap">
-                <span className="text-purple-400">Chrome Extension</span>
-                <span className="text-muted">→</span>
-                <span className="text-purple-400">Adapter</span>
-                <span className="text-muted">→</span>
-                <span className="text-purple-400">Website DOM</span>
-              </div>
-            </div>
-          </div>
+          <HowItWorksAnimation lang={lang} />
         </div>
       </section>
 
