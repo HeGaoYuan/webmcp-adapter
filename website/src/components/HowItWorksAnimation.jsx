@@ -187,10 +187,10 @@ export default function HowItWorksAnimation({ lang = 'en' }) {
 
   return (
     <div className="w-full select-none py-8 overflow-x-auto">
-      <div className="min-w-[1400px] max-w-7xl mx-auto">
-        <div className="flex gap-8">
+      <div className="min-w-[1200px] max-w-7xl mx-auto">
+        <div className="flex gap-6">
           <div className="flex-1 min-w-0">
-            <div ref={aiWindowRef} className="bg-gradient-to-br from-gray-900 to-gray-800 rounded-2xl shadow-2xl border border-gray-700 overflow-hidden flex flex-col" style={{ height: '580px', minHeight: '580px', maxHeight: '580px' }}>
+            <div ref={aiWindowRef} className="bg-gradient-to-br from-gray-900 to-gray-800 rounded-2xl shadow-2xl border border-gray-700 overflow-hidden flex flex-col" style={{ height: '500px', minHeight: '500px', maxHeight: '500px' }}>
               <div className="bg-gray-800/80 backdrop-blur px-4 py-3 flex items-center gap-2 border-b border-gray-700">
                 <div className="flex gap-1.5">
                   <div className="w-3 h-3 rounded-full bg-red-500" />
@@ -250,7 +250,7 @@ export default function HowItWorksAnimation({ lang = 'en' }) {
           </div>
 
           <div className="flex-1 min-w-0">
-            <div ref={browserWindowRef} className={`bg-gradient-to-br from-gray-900 to-gray-800 rounded-2xl shadow-2xl border overflow-hidden flex flex-col transition-all duration-500 ${browserActive ? 'border-emerald-700' : 'border-gray-700'}`} style={{ height: '580px', minHeight: '580px', maxHeight: '580px' }}>
+            <div ref={browserWindowRef} className={`bg-gradient-to-br from-gray-900 to-gray-800 rounded-2xl shadow-2xl border overflow-hidden flex flex-col transition-all duration-500 ${browserActive ? 'border-emerald-700' : 'border-gray-700'}`} style={{ height: '500px', minHeight: '500px', maxHeight: '500px' }}>
               <div className="bg-gray-800/80 backdrop-blur border-b border-gray-700">
                 <div className="px-4 py-2 flex items-center gap-2">
                   <div className="flex gap-1.5">
@@ -338,7 +338,7 @@ export default function HowItWorksAnimation({ lang = 'en' }) {
       </div>
 
       {/* Data Flow Visualization - Always visible, below both windows */}
-      <div className="min-w-[1400px] max-w-7xl mx-auto mt-6">
+      <div className="min-w-[1200px] max-w-7xl mx-auto mt-6">
         <div className="flex items-center justify-center gap-4">
           {/* AI Client */}
           <div className={`bg-surface/80 backdrop-blur border rounded-xl p-4 shadow-lg transition-all duration-500 ${dataFlowActive ? 'border-blue-400/40 scale-105' : 'border-gray-700/40 scale-100'}`}>

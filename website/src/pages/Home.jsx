@@ -96,7 +96,7 @@ export default function Home() {
             <p className="text-gray-400">{t.home.setupDesc}</p>
           </div>
 
-          <div className="grid md:grid-cols-3 gap-8">
+          <div className="grid md:grid-cols-3 gap-6 mb-12">
             {[
               {
                 title: t.home.setup1Title,
@@ -126,7 +126,6 @@ export default function Home() {
                 title: t.home.setup3Title,
                 desc: t.home.setup3Desc,
                 action: t.home.setup3Action,
-                extra: t.home.setup3Extra,
                 link: '/adapters',
                 icon: (
                   <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
@@ -135,10 +134,10 @@ export default function Home() {
                 ),
               },
             ].map((step, i) => (
-              <div key={i} className="relative">
-                <div className="bg-surface border border-border rounded-xl p-6 h-full flex flex-col">
+              <div key={i} className="relative group">
+                <div className="bg-surface border border-border rounded-xl p-6 h-full flex flex-col hover:border-accent/30 transition-all duration-300">
                   <div className="flex items-center gap-3 mb-4">
-                    <div className="w-10 h-10 rounded-lg bg-accent/10 border border-accent/20 flex items-center justify-center text-accent">
+                    <div className="w-10 h-10 rounded-lg bg-accent/10 border border-accent/20 flex items-center justify-center text-accent group-hover:bg-accent/20 transition-colors">
                       {step.icon}
                     </div>
                   </div>
@@ -146,45 +145,55 @@ export default function Home() {
                   <p className="text-gray-400 text-sm leading-relaxed mb-4 flex-1">{step.desc}</p>
                   <Link
                     to={step.link}
-                    className="inline-flex items-center gap-1 text-accent hover:text-accent-hover text-sm font-medium transition-colors"
+                    className="inline-flex items-center gap-1 text-accent hover:text-accent-hover text-sm font-medium transition-colors group-hover:gap-2"
                   >
                     {step.action}
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="transition-transform">
+                      <path d="M5 12h14M12 5l7 7-7 7" />
+                    </svg>
                   </Link>
-                  {step.extra && (
-                    <Link
-                      to={getContributeUrl()}
-                      className="inline-flex items-center gap-1 text-gray-500 hover:text-gray-400 text-xs mt-2 transition-colors"
-                    >
-                      {step.extra} →
-                    </Link>
-                  )}
                 </div>
               </div>
             ))}
           </div>
-        </div>
-      </section>
 
-      {/* CTA - Contribute */}
-      <section className="py-20 px-4 sm:px-6">
-        <div className="max-w-2xl mx-auto text-center bg-gradient-to-br from-surface to-surface/50 border border-border rounded-2xl p-10">
-          <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-accent/20 to-purple-500/20 border border-accent/30 flex items-center justify-center text-accent mx-auto mb-5">
-            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-              <path d="M12 5v14M5 12h14" />
-            </svg>
+          {/* Adapter Hub CTA */}
+          <div className="relative overflow-hidden bg-gradient-to-br from-surface via-surface to-accent/5 border border-border rounded-2xl p-8">
+            <div className="absolute top-0 right-0 w-64 h-64 bg-accent/5 rounded-full blur-3xl" />
+            <div className="relative flex flex-col md:flex-row items-center gap-6">
+              <div className="flex-1">
+                <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-accent/10 border border-accent/20 text-accent text-xs font-medium mb-3">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" />
+                  </svg>
+                  {t.home.adapterHubTitle}
+                </div>
+                <h3 className="text-xl font-bold text-white mb-2">
+                  {t.home.adapterHubDesc}
+                </h3>
+                <p className="text-gray-400 text-sm">
+                  <span className="text-accent font-semibold">{t.home.adapterHubCta}</span>{' '}
+                  {t.home.adapterHubCtaDesc}
+                </p>
+              </div>
+              <div className="flex flex-col sm:flex-row gap-3">
+                <Link
+                  to="/adapters"
+                  className="px-5 py-2.5 rounded-lg bg-accent hover:bg-accent-hover text-white font-medium text-sm transition-colors whitespace-nowrap"
+                >
+                  {t.home.setup3Action}
+                </Link>
+                <a
+                  href={getContributeUrl()}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="px-5 py-2.5 rounded-lg border border-border hover:border-accent/30 bg-surface/50 text-gray-300 hover:text-white font-medium text-sm transition-colors whitespace-nowrap"
+                >
+                  {t.home.ctaButton}
+                </a>
+              </div>
+            </div>
           </div>
-          <h2 className="text-2xl font-bold text-white mb-3">{t.home.ctaTitle}</h2>
-          <p className="text-gray-400 mb-8 leading-relaxed">
-            {t.home.ctaDesc}
-          </p>
-          <a
-            href={getContributeUrl()}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex items-center gap-2 px-6 py-3 rounded-lg bg-accent hover:bg-accent-hover text-white font-medium text-sm transition-colors"
-          >
-            {t.home.ctaButton}
-          </a>
         </div>
       </section>
     </div>
