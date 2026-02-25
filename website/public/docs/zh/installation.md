@@ -1,79 +1,19 @@
 # 完整安装
 
-基本安装流程请参见[快速开始](/docs/quick-start)。本页介绍后续内容：开机自启服务、连接多种 AI 客户端，以及卸载。
+基本安装流程请参见[快速开始](/docs/quick-start)。本页介绍如何连接各种 AI 客户端以及卸载。
 
-## 开机自启
-
-WebSocket 服务需要在 Claude Desktop 连接之前运行。与其每次手动启动，不如配置成开机自动启动。
-
-### macOS — launchd
-
-创建文件 `~/Library/LaunchAgents/com.webmcp.adapter.plist`：
-
-```xml
-<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
-  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0">
-<dict>
-  <key>Label</key>
-  <string>com.webmcp.adapter</string>
-  <key>ProgramArguments</key>
-  <array>
-    <string>webmcp</string>
-    <string>service</string>
-    <string>start</string>
-  </array>
-  <key>RunAtLoad</key>
-  <true/>
-  <key>KeepAlive</key>
-  <true/>
-  <key>StandardOutPath</key>
-  <string>/Users/YOUR_USERNAME/.webmcp/service.log</string>
-  <key>StandardErrorPath</key>
-  <string>/Users/YOUR_USERNAME/.webmcp/service.log</string>
-</dict>
-</plist>
-```
-
-> 将 `YOUR_USERNAME` 替换为你的用户名，或使用 `echo $HOME` 获取完整路径。
->
-> 如果 launchd 找不到 `webmcp`，用 `which webmcp` 获取完整路径（如 `/usr/local/bin/webmcp`），替换 plist 中的 `<string>webmcp</string>`。
-
-启用（开机自启生效）：
-```bash
-launchctl load ~/Library/LaunchAgents/com.webmcp.adapter.plist
-```
-
-禁用：
-```bash
-launchctl unload ~/Library/LaunchAgents/com.webmcp.adapter.plist
-```
-
-### macOS / Linux — pm2
-
-[pm2](https://pm2.keymetrics.io/) 是流行的 Node.js 进程管理工具，支持跨平台自启：
-
-```bash
-npm install -g pm2
-pm2 start webmcp -- service start
-pm2 save
-pm2 startup   # 按照打印的指引完成自启配置
-```
-
-常用 pm2 命令：
-```bash
-pm2 status         # 查看所有进程
-pm2 logs webmcp    # 查看日志
-pm2 stop webmcp    # 停止
-pm2 restart webmcp # 重启
-```
+> **前置条件：** 任何 MCP 客户端连接前，必须先启动 WebSocket bridge：
+> ```bash
+> webmcp service start -d
+> ```
 
 ## AI 客户端配置
 
-所有兼容 MCP 的客户端使用相同的命令，只是配置文件的位置和格式略有不同。
-
 ### Claude Desktop
+
+配置文件：
+- **macOS：** `~/Library/Application Support/Claude/claude_desktop_config.json`
+- **Windows：** `%APPDATA%\Claude\claude_desktop_config.json`
 
 ```json
 {
@@ -86,20 +26,176 @@ pm2 restart webmcp # 重启
 }
 ```
 
-配置文件位置：
-- **macOS：** `~/Library/Application Support/Claude/claude_desktop_config.json`
-- **Windows：** `%APPDATA%\Claude\claude_desktop_config.json`
+保存后重启 Claude Desktop。
 
-### Cursor / 其他 MCP 客户端
+---
 
-Cursor 等工具使用相同的 MCP server 格式。查阅你的客户端文档获取配置文件位置，然后添加与上方相同的 `webmcp mcp` 配置项。
+### Claude Code
+
+```bash
+claude mcp add webmcp-adapter webmcp mcp
+```
+
+---
+
+### Cursor
+
+配置文件：`~/.cursor/mcp.json`（全局）或 `.cursor/mcp.json`（项目级）
+
+```json
+{
+  "mcpServers": {
+    "webmcp-adapter": {
+      "command": "webmcp",
+      "args": ["mcp"]
+    }
+  }
+}
+```
+
+---
+
+### Windsurf
+
+配置文件：`~/.codeium/windsurf/mcp_config.json`
+
+```json
+{
+  "mcpServers": {
+    "webmcp-adapter": {
+      "command": "webmcp",
+      "args": ["mcp"]
+    }
+  }
+}
+```
+
+---
+
+### Cline（VS Code 扩展）
+
+配置文件：`cline_mcp_settings.json`（通过 Cline 面板管理）
+
+打开 Cline 面板 → **MCP Servers** → **Configure MCP Servers**，添加：
+
+```json
+{
+  "mcpServers": {
+    "webmcp-adapter": {
+      "type": "stdio",
+      "command": "webmcp",
+      "args": ["mcp"]
+    }
+  }
+}
+```
+
+---
+
+### GitHub Copilot（VS Code）
+
+在工作区创建 `.vscode/mcp.json`（或添加到用户设置）：
+
+```json
+{
+  "servers": {
+    "webmcp-adapter": {
+      "type": "stdio",
+      "command": "webmcp",
+      "args": ["mcp"]
+    }
+  }
+}
+```
+
+---
+
+### Kiro
+
+配置文件：`.kiro/settings/mcp.json`（项目级）
+
+```json
+{
+  "mcpServers": {
+    "webmcp-adapter": {
+      "command": "webmcp",
+      "args": ["mcp"]
+    }
+  }
+}
+```
+
+---
+
+### Amp
+
+添加到 VS Code `settings.json`：
+
+```json
+{
+  "amp.mcpServers": {
+    "webmcp-adapter": {
+      "command": "webmcp",
+      "args": ["mcp"]
+    }
+  }
+}
+```
+
+---
+
+### OpenCode
+
+配置文件：`~/.config/opencode/opencode.json`
+
+```json
+{
+  "mcp": {
+    "webmcp-adapter": {
+      "type": "local",
+      "command": ["webmcp", "mcp"],
+      "enabled": true
+    }
+  }
+}
+```
+
+---
+
+### Codex
+
+配置文件：`~/.codex/config.toml`
+
+```toml
+[mcp_servers.webmcp-adapter]
+command = "webmcp"
+args = ["mcp"]
+```
+
+---
+
+### JetBrains AI
+
+**Settings → Tools → AI Assistant → MCP Servers** → 点击 **+** 添加：
+
+- **名称：** `webmcp-adapter`
+- **类型：** `stdio`
+- **命令：** `webmcp`
+- **参数：** `mcp`
+
+---
+
+### Warp
+
+**Settings → AI → Manage MCP Servers** → 添加新服务，命令填 `webmcp`，参数填 `mcp`。
+
+---
 
 ## 卸载
 
 ```bash
-webmcp service stop                          # 停止后台服务
-launchctl unload ~/Library/LaunchAgents/com.webmcp.adapter.plist  # 禁用自启（macOS）
-npm uninstall -g webmcp-adapter              # 删除 CLI 和扩展包
+webmcp service stop                  # 停止后台服务
+npm uninstall -g webmcp-adapter      # 删除 CLI 和扩展包
 ```
 
 然后在 `chrome://extensions` 中移除 Chrome 扩展，并从 AI 客户端配置文件中删除 `webmcp-adapter` 条目。
