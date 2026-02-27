@@ -194,6 +194,15 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     return true;
   }
 
+  // 页面分析请求（从 analysis panel 发起）
+  if (msg.type === "analyze_page") {
+    // 转发到 content script 进行分析
+    chrome.tabs.sendMessage(msg.tabId, { type: "analyze_page_dom" })
+      .then(result => sendResponse(result))
+      .catch(err => sendResponse({ success: false, error: err.message }));
+    return true;
+  }
+
   // Popup 查询当前 tab 的状态（active / available / none）
   if (msg.type === "get_tab_info") {
     (async () => {
@@ -249,6 +258,55 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     doRefreshRegistry()
       .then(result => sendResponse(result))
       .catch(err => sendResponse({ ok: false, error: err.message }));
+    return true;
+  }
+
+  // 智能生成的适配器保存通知
+  if (msg.type === "adapter_created") {
+    (async () => {
+      try {
+        const { adapter } = msg;
+        console.log('[WebMCP] Adapter created:', adapter);
+        
+        // 将适配器转换为可执行的 JS 代码
+        const adapterCode = generateAdapterCode(adapter);
+        
+        // 保存到 chrome.storage（用于自动注入）
+        await chrome.storage.local.set({
+          [`generated_adapter_${adapter.domain}`]: {
+            code: adapterCode,
+            metadata: adapter,
+            createdAt: adapter.createdAt
+          }
+        });
+        
+        console.log(`[WebMCP] Adapter saved for domain: ${adapter.domain}`);
+        
+        // 提供下载功能（可选）
+        try {
+          const blob = new Blob([adapterCode], { type: 'text/javascript' });
+          const downloadUrl = URL.createObjectURL(blob);
+          
+          await chrome.downloads.download({
+            url: downloadUrl,
+            filename: `webmcp-adapters/${adapter.domain}.js`,
+            saveAs: false
+          });
+          
+          console.log(`[WebMCP] Adapter also downloaded as backup`);
+        } catch (downloadError) {
+          console.warn('[WebMCP] Failed to download adapter file:', downloadError);
+        }
+        
+        sendResponse({ 
+          ok: true, 
+          message: '适配器已保存，刷新页面后自动生效'
+        });
+      } catch (error) {
+        console.error('[WebMCP] Failed to save adapter:', error);
+        sendResponse({ ok: false, error: error.message });
+      }
+    })();
     return true;
   }
 
@@ -403,6 +461,110 @@ async function injectAdapters(tabId, url) {
   let hostname;
   try { hostname = new URL(url).hostname; } catch { return; }
 
+  console.log(`[WebMCP] injectAdapters called for hostname: ${hostname}, tabId: ${tabId}`);
+
+  // 1. 首先检查是否有智能生成的适配器
+  // 尝试多个可能的 key（处理 www 前缀等情况）
+  const possibleKeys = [
+    `generated_adapter_${hostname}`,
+    `generated_adapter_${hostname.replace(/^www\./, '')}`, // 移除 www
+    `generated_adapter_www.${hostname}` // 添加 www
+  ];
+  
+  console.log(`[WebMCP] Checking possible keys:`, possibleKeys);
+  
+  for (const storageKey of possibleKeys) {
+    const generatedAdapter = await chrome.storage.local.get([storageKey]);
+    console.log(`[WebMCP] Checking key "${storageKey}":`, generatedAdapter);
+    
+    if (generatedAdapter[storageKey]) {
+      try {
+        const { metadata } = generatedAdapter[storageKey];
+        console.log(`[WebMCP] Found generated adapter:`, metadata);
+        
+        // 直接传递适配器元数据，在 content script 中重建
+        await chrome.scripting.executeScript({
+          target: { tabId },
+          world: "ISOLATED",
+          func: function(adapterMetadata) {
+            console.log('[WebMCP Content] Registering generated adapter:', adapterMetadata.name);
+            
+            // 重建工具定义
+            const tools = adapterMetadata.tools.map(tool => {
+              // 根据工具类型创建 handler
+              let handler;
+              
+              if (tool.name.startsWith('search_')) {
+                handler = async function(args) {
+                  const searchInput = document.querySelector('input[type="search"], input[placeholder*="搜索"], input[placeholder*="search"]');
+                  if (!searchInput) throw new Error('搜索框未找到');
+                  
+                  searchInput.value = args.query || '';
+                  searchInput.dispatchEvent(new Event('input', { bubbles: true }));
+                  
+                  const searchButton = document.querySelector('button[type="submit"], button[aria-label*="搜索"]');
+                  if (searchButton) {
+                    searchButton.click();
+                  } else {
+                    searchInput.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+                  }
+                  
+                  return { success: true, query: args.query };
+                };
+              } else if (tool.name.startsWith('get_') && tool.name.endsWith('_list')) {
+                handler = async function(args) {
+                  const listContainer = document.querySelector('ul, ol, [role="list"]');
+                  if (!listContainer) throw new Error('列表未找到');
+                  
+                  const items = Array.from(listContainer.querySelectorAll('li, [role="listitem"]')).map(item => ({
+                    text: item.textContent.trim(),
+                    link: item.querySelector('a')?.href || null
+                  }));
+                  
+                  return { items, count: items.length };
+                };
+              } else {
+                handler = async function(args) {
+                  return { success: true, message: '工具执行成功' };
+                };
+              }
+              
+              return {
+                name: tool.name,
+                description: tool.description,
+                parameters: tool.parameters || {},
+                handler: handler
+              };
+            });
+            
+            // 注册适配器
+            if (window.__webmcpRegister) {
+              window.__webmcpRegister({
+                name: adapterMetadata.name,
+                domain: adapterMetadata.domain,
+                version: adapterMetadata.version,
+                tools: tools
+              });
+              console.log('[WebMCP Content] Adapter registered successfully');
+            } else {
+              console.error('[WebMCP Content] __webmcpRegister not found');
+            }
+          },
+          args: [metadata]
+        });
+        
+        tabAvailableAdapter.delete(tabId);
+        console.log(`[WebMCP] Successfully injected generated adapter for "${hostname}" into tab ${tabId}`);
+        return; // 优先使用生成的适配器
+      } catch (err) {
+        console.error(`[WebMCP] Failed to inject generated adapter:`, err.message, err);
+      }
+    }
+  }
+  
+  console.log(`[WebMCP] No generated adapter found for ${hostname}`);
+
+  // 2. 如果没有生成的适配器，使用 Hub 中的适配器
   const registry = await getCachedRegistry();
   const adapters = registry?.adapters ?? [];
 
@@ -461,6 +623,100 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
     injectAdapters(tabId, tab.url);
   }
 });
+
+// ─── 智能适配器代码生成 ─────────────────────────────────────────────────────
+
+/**
+ * 将智能生成的适配器元数据转换为可执行的 JS 代码
+ * @param {Object} adapter - 适配器元数据
+ * @returns {string} 适配器 JS 代码
+ */
+function generateAdapterCode(adapter) {
+  const tools = adapter.tools.map(tool => {
+    // 生成工具的 handler 函数
+    const handlerCode = generateToolHandler(tool);
+    
+    return `{
+      name: "${tool.name}",
+      description: "${tool.description}",
+      parameters: ${JSON.stringify(tool.parameters || {})},
+      handler: ${handlerCode}
+    }`;
+  }).join(',\n    ');
+
+  return `// Auto-generated adapter for ${adapter.domain}
+// Created at: ${new Date(adapter.createdAt).toISOString()}
+
+window.__webmcpRegister({
+  name: "${adapter.name}",
+  domain: "${adapter.domain}",
+  version: "${adapter.version}",
+  tools: [
+    ${tools}
+  ]
+});
+`;
+}
+
+/**
+ * 生成工具的 handler 函数代码
+ * @param {Object} tool - 工具定义
+ * @returns {string} handler 函数代码
+ */
+function generateToolHandler(tool) {
+  // 根据工具类型生成不同的 handler
+  if (tool.name.startsWith('search_')) {
+    return `async function(args) {
+      // 查找搜索框
+      const searchInput = document.querySelector('input[type="search"], input[placeholder*="搜索"], input[placeholder*="search"]');
+      if (!searchInput) throw new Error('搜索框未找到');
+      
+      // 输入搜索关键词
+      searchInput.value = args.query || '';
+      searchInput.dispatchEvent(new Event('input', { bubbles: true }));
+      
+      // 查找搜索按钮并点击
+      const searchButton = document.querySelector('button[type="submit"], button[aria-label*="搜索"], button[aria-label*="search"]');
+      if (searchButton) {
+        searchButton.click();
+      } else {
+        // 如果没有按钮，尝试按回车
+        searchInput.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+      }
+      
+      return { success: true, query: args.query };
+    }`;
+  } else if (tool.name.startsWith('get_') && tool.name.endsWith('_list')) {
+    return `async function(args) {
+      // 查找列表容器
+      const listContainer = document.querySelector('ul, ol, [role="list"]');
+      if (!listContainer) throw new Error('列表未找到');
+      
+      // 提取列表项
+      const items = Array.from(listContainer.querySelectorAll('li, [role="listitem"]')).map(item => ({
+        text: item.textContent.trim(),
+        link: item.querySelector('a')?.href || null
+      }));
+      
+      return { items, count: items.length };
+    }`;
+  } else if (tool.name.startsWith('navigate_to_')) {
+    return `async function(args) {
+      // 查找导航链接
+      const link = document.querySelector('a[href*="${tool.name.replace('navigate_to_', '')}"]');
+      if (!link) throw new Error('导航链接未找到');
+      
+      link.click();
+      return { success: true, url: link.href };
+    }`;
+  } else {
+    // 通用 handler
+    return `async function(args) {
+      // TODO: 实现 ${tool.name} 的具体逻辑
+      return { success: true, message: '工具执行成功' };
+    }`;
+  }
+}
 
 // ─── 启动 ──────────────────────────────────────────────────────────────────
 

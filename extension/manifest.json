@@ -46,9 +46,16 @@
     }
   },
 
+  "options_page": "options/options.html",
+
   "web_accessible_resources": [
     {
-      "resources": ["adapters/*.js"],
+      "resources": [
+        "adapters/*.js",
+        "analyzer/*.js",
+        "ui/*.html",
+        "ui/*.js"
+      ],
       "matches": ["<all_urls>"]
     }
   ]

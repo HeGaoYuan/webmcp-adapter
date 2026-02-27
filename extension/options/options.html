@@ -1,0 +1,343 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>WebMCP 设置</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: #f5f5f5;
+      padding: 20px;
+    }
+
+    .container {
+      max-width: 800px;
+      margin: 0 auto;
+    }
+
+    .header {
+      background: white;
+      padding: 20px;
+      border-radius: 8px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+      margin-bottom: 20px;
+    }
+
+    .header h1 {
+      font-size: 24px;
+      color: #333;
+      margin-bottom: 8px;
+    }
+
+    .header p {
+      color: #666;
+      font-size: 14px;
+    }
+
+    .tabs {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 20px;
+    }
+
+    .tab {
+      padding: 10px 20px;
+      background: white;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 14px;
+      color: #666;
+      transition: all 0.2s;
+    }
+
+    .tab:hover {
+      background: #f0f0f0;
+    }
+
+    .tab.active {
+      background: #22c55e;
+      color: white;
+    }
+
+    .tab-content {
+      display: none;
+    }
+
+    .tab-content.active {
+      display: block;
+    }
+
+    .section {
+      background: white;
+      padding: 20px;
+      border-radius: 8px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+      margin-bottom: 20px;
+    }
+
+    .section-title {
+      font-size: 18px;
+      font-weight: 600;
+      color: #333;
+      margin-bottom: 16px;
+    }
+
+    .form-group {
+      margin-bottom: 20px;
+    }
+
+    .form-group label {
+      display: block;
+      font-size: 14px;
+      font-weight: 500;
+      color: #333;
+      margin-bottom: 8px;
+    }
+
+    .form-group input,
+    .form-group select {
+      width: 100%;
+      padding: 10px;
+      border: 1px solid #ddd;
+      border-radius: 6px;
+      font-size: 14px;
+    }
+
+    .form-group input:focus,
+    .form-group select:focus {
+      outline: none;
+      border-color: #22c55e;
+    }
+
+    .form-group .hint {
+      font-size: 12px;
+      color: #999;
+      margin-top: 4px;
+    }
+
+    .btn {
+      padding: 10px 20px;
+      border: none;
+      border-radius: 6px;
+      font-size: 14px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .btn-primary {
+      background: #22c55e;
+      color: white;
+    }
+
+    .btn-primary:hover {
+      background: #16a34a;
+    }
+
+    .btn-secondary {
+      background: #e5e7eb;
+      color: #374151;
+    }
+
+    .btn-secondary:hover {
+      background: #d1d5db;
+    }
+
+    .btn-danger {
+      background: #ef4444;
+      color: white;
+    }
+
+    .btn-danger:hover {
+      background: #dc2626;
+    }
+
+    .btn-small {
+      padding: 6px 12px;
+      font-size: 12px;
+    }
+
+    .status {
+      padding: 12px;
+      border-radius: 6px;
+      font-size: 14px;
+      margin-bottom: 16px;
+    }
+
+    .status-success {
+      background: #dcfce7;
+      color: #166534;
+    }
+
+    .status-error {
+      background: #fee2e2;
+      color: #991b1b;
+    }
+
+    .adapter-list {
+      margin-top: 16px;
+    }
+
+    .adapter-item {
+      border: 1px solid #e5e7eb;
+      border-radius: 6px;
+      padding: 16px;
+      margin-bottom: 12px;
+    }
+
+    .adapter-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .adapter-info {
+      flex: 1;
+    }
+
+    .adapter-name {
+      font-size: 16px;
+      font-weight: 600;
+      color: #333;
+      margin-bottom: 4px;
+    }
+
+    .adapter-meta {
+      font-size: 12px;
+      color: #666;
+    }
+
+    .adapter-actions {
+      display: flex;
+      gap: 8px;
+    }
+
+    .adapter-code {
+      margin-top: 12px;
+      display: none;
+      border-top: 1px solid #e5e7eb;
+      padding-top: 12px;
+    }
+
+    .adapter-code.show {
+      display: block;
+    }
+
+    .adapter-code pre {
+      background: #282c34;
+      padding: 12px;
+      border-radius: 4px;
+      overflow-x: auto;
+      font-size: 12px;
+      font-family: 'Monaco', 'Menlo', 'Consolas', monospace;
+      line-height: 1.5;
+      max-height: 400px;
+      overflow-y: auto;
+    }
+
+    .adapter-code pre code {
+      color: #abb2bf;
+    }
+
+    /* JavaScript 语法高亮 */
+    .hljs-keyword { color: #c678dd; }
+    .hljs-string { color: #98c379; }
+    .hljs-number { color: #d19a66; }
+    .hljs-comment { color: #5c6370; font-style: italic; }
+    .hljs-function { color: #61afef; }
+    .hljs-class { color: #e5c07b; }
+    .hljs-property { color: #e06c75; }
+    .hljs-operator { color: #56b6c2; }
+    .hljs-punctuation { color: #abb2bf; }
+
+    .empty-state {
+      text-align: center;
+      padding: 40px;
+      color: #999;
+    }
+
+    .hidden {
+      display: none;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>WebMCP 设置</h1>
+      <p>配置 AI API 和管理自动生成的适配器</p>
+    </div>
+
+    <div class="tabs">
+      <button class="tab active" data-tab="ai-config">AI 配置</button>
+      <button class="tab" data-tab="adapters">适配器管理</button>
+    </div>
+
+    <!-- AI 配置标签页 -->
+    <div id="ai-config" class="tab-content active">
+      <div class="section">
+        <div class="section-title">AI API 配置</div>
+        
+        <div id="saveStatus" class="status hidden"></div>
+
+        <form id="configForm">
+          <div class="form-group">
+            <label for="provider">AI 提供商</label>
+            <select id="provider" name="provider">
+              <option value="claude">Claude (Anthropic)</option>
+              <option value="openai">OpenAI</option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label for="baseUrl">Base URL（可选）</label>
+            <input type="text" id="baseUrl" name="baseUrl" placeholder="留空使用默认地址">
+            <div class="hint">用于代理服务或 OpenRouter 等第三方服务</div>
+          </div>
+
+          <div class="form-group">
+            <label for="apiKey">API Key</label>
+            <input type="password" id="apiKey" name="apiKey" placeholder="输入你的 API Key">
+          </div>
+
+          <div class="form-group">
+            <label for="model">模型</label>
+            <select id="model" name="model">
+              <!-- 动态填充 -->
+            </select>
+          </div>
+
+          <button type="submit" class="btn btn-primary">保存配置</button>
+        </form>
+      </div>
+    </div>
+
+    <!-- 适配器管理标签页 -->
+    <div id="adapters" class="tab-content">
+      <div class="section">
+        <div class="section-title">自动生成的适配器</div>
+        
+        <div id="adapterStatus" class="status hidden"></div>
+
+        <div id="adapterList" class="adapter-list">
+          <div class="empty-state">加载中...</div>
+        </div>
+
+        <div style="margin-top: 16px; display: flex; gap: 8px;">
+          <button id="btnRefreshAdapters" class="btn btn-secondary">刷新列表</button>
+          <button id="btnClearAll" class="btn btn-danger">清除所有</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="options.js"></script>
+</body>
+</html>

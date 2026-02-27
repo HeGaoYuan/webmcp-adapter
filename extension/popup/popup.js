@@ -128,6 +128,17 @@ async function init() {
   document.getElementById("btnNewIssue").onclick = () => openTab(GITHUB_NEW_ISSUE);
   document.getElementById("btnContribute").onclick = () => openTab(GITHUB_CONTRIBUTING);
 
+  // 智能生成适配器按钮
+  document.getElementById("btnStartAnalysis").onclick = async () => {
+    // 获取当前 tab
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    
+    // 打开分析面板，并通过 URL 参数传递 tabId
+    chrome.tabs.create({
+      url: chrome.runtime.getURL(`ui/analysis-panel.html?tabId=${tab.id}`)
+    });
+  };
+
   // Refresh registry button
   const linkRefresh = document.getElementById("linkRefresh");
   linkRefresh.onclick = async () => {
