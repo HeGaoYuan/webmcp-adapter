@@ -6,7 +6,7 @@ Lets AI clients like Claude read, search, and manage your 163 inbox directly —
 
 ## Tools
 
-### `navigate_to_inbox`
+### `mail.163.com.navigate_to_inbox`
 
 Navigates back to the 163 Mail inbox homepage and waits for it to fully load.
 
@@ -27,7 +27,7 @@ Navigates back to the 163 Mail inbox homepage and waits for it to fully load.
 
 ---
 
-### `search_emails`
+### `mail.163.com.search_emails`
 
 Searches your inbox by keyword and returns a list of matching emails.
 
@@ -56,11 +56,11 @@ Searches your inbox by keyword and returns a list of matching emails.
 }
 ```
 
-Use the returned `id` values with `open_email`.
+Use the returned `id` values with `mail.163.com.open_email`.
 
 ---
 
-### `get_unread_emails`
+### `mail.163.com.get_unread_emails`
 
 Returns a list of unread emails from your inbox.
 
@@ -87,7 +87,7 @@ Returns a list of unread emails from your inbox.
 
 ---
 
-### `open_email`
+### `mail.163.com.open_email`
 
 Opens a specific email and returns its full content including body and attachment list.
 
@@ -95,7 +95,7 @@ Opens a specific email and returns its full content including body and attachmen
 
 | Name | Type | Required | Description |
 |---|---|---|---|
-| `emailId` | string | ✅ | Email ID from `search_emails` or `get_unread_emails` |
+| `emailId` | string | ✅ | Email ID from `mail.163.com.search_emails` or `mail.163.com.get_unread_emails` |
 
 **Returns:**
 ```json
@@ -116,13 +116,13 @@ Opens a specific email and returns its full content including body and attachmen
 }
 ```
 
-You must call this before `download_attachment`.
+You must call this before `mail.163.com.download_attachment`.
 
 ---
 
-### `download_attachment`
+### `mail.163.com.download_attachment`
 
-Downloads an attachment from the currently open email. You must call `open_email` first.
+Downloads an attachment from the currently open email. You must call `mail.163.com.open_email` first.
 
 **Parameters:**
 
@@ -168,12 +168,12 @@ Returns information about the current page state — useful for checking whether
 ```
 
 Claude will:
-1. `navigate_to_inbox()` — start from a clean state
-2. `search_emails({ keyword: "发票" })` — find matching emails
+1. `mail.163.com.navigate_to_inbox()` — start from a clean state
+2. `mail.163.com.search_emails({ keyword: "发票" })` — find matching emails
 3. For each email with an attachment:
-   - `open_email({ emailId: "..." })`
-   - `download_attachment({ attachmentName: "all" })`
-   - `navigate_to_inbox()` — return before the next one
+   - `mail.163.com.open_email({ emailId: "..." })`
+   - `mail.163.com.download_attachment({ attachmentName: "all" })`
+   - `mail.163.com.navigate_to_inbox()` — return before the next one
 
 ### Check unread emails
 
@@ -181,7 +181,7 @@ Claude will:
 我有哪些未读邮件？
 ```
 
-Claude will call `get_unread_emails()` and summarize the results.
+Claude will call `mail.163.com.get_unread_emails()` and summarize the results.
 
 ### Read a specific email
 
@@ -189,7 +189,7 @@ Claude will call `get_unread_emails()` and summarize the results.
 打开那封主题是"周会纪要"的邮件，告诉我内容
 ```
 
-Claude will call `search_emails({ keyword: "周会纪要" })`, then `open_email()` with the matching ID, and summarize the body.
+Claude will call `mail.163.com.search_emails({ keyword: "周会纪要" })`, then `mail.163.com.open_email()` with the matching ID, and summarize the body.
 
 ## Notes
 

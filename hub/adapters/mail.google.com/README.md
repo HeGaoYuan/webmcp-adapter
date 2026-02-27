@@ -6,7 +6,7 @@ Lets AI clients like Claude read, search, and manage your Gmail inbox directly �
 
 ## Tools
 
-### `navigate_to_inbox`
+### `mail.google.com.navigate_to_inbox`
 
 Navigates to the Gmail inbox and waits for it to fully load.
 
@@ -27,7 +27,7 @@ Navigates to the Gmail inbox and waits for it to fully load.
 
 ---
 
-### `search_emails`
+### `mail.google.com.search_emails`
 
 Searches your inbox by keyword and returns a list of matching email threads.
 
@@ -56,11 +56,11 @@ Searches your inbox by keyword and returns a list of matching email threads.
 }
 ```
 
-Use the returned `id` values with `open_email`.
+Use the returned `id` values with `mail.google.com.open_email`.
 
 ---
 
-### `get_unread_emails`
+### `mail.google.com.get_unread_emails`
 
 Returns a list of unread emails from your inbox.
 
@@ -87,7 +87,7 @@ Returns a list of unread emails from your inbox.
 
 ---
 
-### `open_email`
+### `mail.google.com.open_email`
 
 Opens a specific email thread and returns its full content including body and attachment list.
 
@@ -95,7 +95,7 @@ Opens a specific email thread and returns its full content including body and at
 
 | Name | Type | Required | Description |
 |---|---|---|---|
-| `emailId` | string | ✅ | Thread ID from `search_emails` or `get_unread_emails` |
+| `emailId` | string | ✅ | Thread ID from `mail.google.com.search_emails` or `mail.google.com.get_unread_emails` |
 
 **Returns:**
 ```json
@@ -117,13 +117,13 @@ Opens a specific email thread and returns its full content including body and at
 }
 ```
 
-You must call this before `download_attachment`.
+You must call this before `mail.google.com.download_attachment`.
 
 ---
 
-### `download_attachment`
+### `mail.google.com.download_attachment`
 
-Downloads an attachment from the currently open email. You must call `open_email` first.
+Downloads an attachment from the currently open email. You must call `mail.google.com.open_email` first.
 
 **Parameters:**
 

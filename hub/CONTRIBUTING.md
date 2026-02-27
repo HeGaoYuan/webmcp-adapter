@@ -38,6 +38,36 @@ adapters/
 - `version`：**发布时的 ISO 8601 时间戳**，用户凭此判断 adapter 新旧程度
 - `verified_on`：最后验证目标网站可用的日期，帮助用户判断是否可能已过期
 
+## 工具命名规范（重要！）
+
+为了避免不同网站的工具名称冲突，**所有工具名称必须使用命名空间格式**：
+
+```
+{adapter_id}.{tool_name}
+```
+
+- `adapter_id`：使用 `meta.json` 中的 `id` 字段
+- `tool_name`：使用 snake_case 格式的功能描述
+
+### 示例
+
+如果 `meta.json` 中 `id` 为 `mail.163.com`，则工具名称应为：
+
+- ✅ `mail.163.com.search_emails`
+- ✅ `mail.163.com.get_unread_emails`
+- ✅ `mail.163.com.open_email`
+- ❌ `search_emails`（缺少命名空间前缀）
+- ❌ `163mail.search_emails`（前缀不匹配 id）
+
+### 为什么需要命名空间？
+
+当用户同时打开多个网站（如 163邮箱 和 Gmail）时，如果两个网站都提供 `search_emails` 工具，AI 客户端将无法区分应该调用哪一个。使用命名空间后：
+
+- `mail.163.com.search_emails` → 在 163邮箱中搜索
+- `mail.google.com.search_emails` → 在 Gmail 中搜索
+
+这符合 [MCP 官方规范](https://modelcontextprotocol.io/specification/draft/server/tools)，工具名称允许使用点号（`.`）作为命名空间分隔符。
+
 ## index.js 格式
 
 ```js
@@ -82,7 +112,7 @@ window.__webmcpRegister({
   match: ["example.com"],        // 匹配的域名
   tools: [
     {
-      name: "my_tool",           // tool 名称，snake_case
+      name: "example.com.my_tool",  // ⚠️ 必须使用命名空间：{adapter_id}.{tool_name}
       description: "工具的用途描述，供 AI Agent 理解何时调用",
       parameters: {
         type: "object",

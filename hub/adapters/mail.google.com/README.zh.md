@@ -6,7 +6,7 @@
 
 ## 工具说明
 
-### `navigate_to_inbox`
+### `mail.google.com.navigate_to_inbox`
 
 导航到 Gmail 收件箱首页并等待完全加载。
 
@@ -27,7 +27,7 @@
 
 ---
 
-### `search_emails`
+### `mail.google.com.search_emails`
 
 按关键词搜索邮件，返回匹配的邮件线程列表。
 
@@ -56,11 +56,11 @@
 }
 ```
 
-返回的 `id` 可用于 `open_email`。
+返回的 `id` 可用于 `mail.google.com.open_email`。
 
 ---
 
-### `get_unread_emails`
+### `mail.google.com.get_unread_emails`
 
 获取收件箱中的未读邮件列表。
 
@@ -87,7 +87,7 @@
 
 ---
 
-### `open_email`
+### `mail.google.com.open_email`
 
 打开指定邮件线程，返回完整内容（包括正文和附件列表）。
 
@@ -95,7 +95,7 @@
 
 | 参数名 | 类型 | 必填 | 说明 |
 |---|---|---|---|
-| `emailId` | string | ✅ | 来自 `search_emails` 或 `get_unread_emails` 的线程 ID |
+| `emailId` | string | ✅ | 来自 `mail.google.com.search_emails` 或 `mail.google.com.get_unread_emails` 的线程 ID |
 
 **返回值：**
 ```json
@@ -117,13 +117,13 @@
 }
 ```
 
-调用 `download_attachment` 之前必须先调用此工具。
+调用 `mail.google.com.download_attachment` 之前必须先调用此工具。
 
 ---
 
-### `download_attachment`
+### `mail.google.com.download_attachment`
 
-下载当前打开邮件的附件。必须先调用 `open_email`。
+下载当前打开邮件的附件。必须先调用 `mail.google.com.open_email`。
 
 **参数：**
 
