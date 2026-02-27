@@ -49,6 +49,12 @@ function renderActive(tools) {
       <div class="tool-name">${escHtml(tool.name)}</div>
       <div class="tool-desc">${escHtml(tool.description || "")}</div>
     `;
+    
+    // 点击工具打开测试模态框
+    item.addEventListener("click", () => {
+      openToolTestModal(tool);
+    });
+    
     list.appendChild(item);
   }
 
@@ -118,9 +124,156 @@ function escHtml(str) {
     .replace(/"/g, "&quot;");
 }
 
+// ── Tool Test Modal ───────────────────────────────────────────────────────────
+
+let currentTool = null;
+let currentTabId = null;
+
+function openToolTestModal(tool) {
+  currentTool = tool;
+  
+  const modal = document.getElementById("toolModal");
+  const modalToolName = document.getElementById("modalToolName");
+  const modalForm = document.getElementById("modalForm");
+  const modalResult = document.getElementById("modalResult");
+  const btnExecute = document.getElementById("btnModalExecute");
+  
+  modalToolName.textContent = tool.name;
+  modalResult.hidden = true;
+  modalResult.textContent = "";
+  btnExecute.disabled = false;
+  btnExecute.textContent = "执行";
+  
+  // 生成参数表单
+  const params = tool.parameters?.properties || {};
+  const required = tool.parameters?.required || [];
+  
+  if (Object.keys(params).length === 0) {
+    modalForm.innerHTML = '<div style="color: #6b7280; font-size: 12px;">此工具无需参数</div>';
+  } else {
+    let formHtml = '';
+    for (const [key, schema] of Object.entries(params)) {
+      const isRequired = required.includes(key);
+      const label = key + (isRequired ? ' *' : '');
+      const description = schema.description || '';
+      const type = schema.type || 'string';
+      
+      let inputHtml = '';
+      if (schema.enum) {
+        // 枚举类型使用下拉框
+        inputHtml = `<select class="form-input" data-param="${key}" ${isRequired ? 'required' : ''}>`;
+        if (!isRequired) {
+          inputHtml += '<option value="">-- 请选择 --</option>';
+        }
+        for (const val of schema.enum) {
+          const selected = schema.default === val ? 'selected' : '';
+          inputHtml += `<option value="${escHtml(String(val))}" ${selected}>${escHtml(String(val))}</option>`;
+        }
+        inputHtml += '</select>';
+      } else if (type === 'number') {
+        const defaultVal = schema.default !== undefined ? schema.default : '';
+        inputHtml = `<input type="number" class="form-input" data-param="${key}" value="${defaultVal}" ${isRequired ? 'required' : ''} />`;
+      } else if (type === 'boolean') {
+        const checked = schema.default === true ? 'checked' : '';
+        inputHtml = `<input type="checkbox" data-param="${key}" ${checked} />`;
+      } else {
+        // 默认文本输入
+        const defaultVal = schema.default !== undefined ? escHtml(String(schema.default)) : '';
+        inputHtml = `<input type="text" class="form-input" data-param="${key}" value="${defaultVal}" ${isRequired ? 'required' : ''} placeholder="${escHtml(description)}" />`;
+      }
+      
+      formHtml += `
+        <div class="form-group">
+          <label class="form-label">${escHtml(label)}</label>
+          ${inputHtml}
+          ${description ? `<div class="form-hint">${escHtml(description)}</div>` : ''}
+        </div>
+      `;
+    }
+    modalForm.innerHTML = formHtml;
+  }
+  
+  modal.hidden = false;
+}
+
+function closeToolTestModal() {
+  document.getElementById("toolModal").hidden = true;
+  currentTool = null;
+}
+
+async function executeCurrentTool() {
+  if (!currentTool || !currentTabId) return;
+  
+  const modalForm = document.getElementById("modalForm");
+  const modalResult = document.getElementById("modalResult");
+  const btnExecute = document.getElementById("btnModalExecute");
+  
+  // 收集参数
+  const args = {};
+  const inputs = modalForm.querySelectorAll("[data-param]");
+  
+  for (const input of inputs) {
+    const key = input.dataset.param;
+    let value;
+    
+    if (input.type === 'checkbox') {
+      value = input.checked;
+    } else if (input.type === 'number') {
+      value = input.value ? Number(input.value) : undefined;
+    } else {
+      value = input.value || undefined;
+    }
+    
+    if (value !== undefined && value !== '') {
+      args[key] = value;
+    }
+  }
+  
+  // 显示执行中状态
+  btnExecute.disabled = true;
+  btnExecute.textContent = "执行中...";
+  modalResult.hidden = true;
+  
+  try {
+    // 调用工具
+    const response = await chrome.runtime.sendMessage({
+      type: "test_call_tool",
+      tabId: currentTabId,
+      toolName: currentTool.name,
+      args: args
+    });
+    
+    // 显示结果
+    modalResult.hidden = false;
+    if (response.error) {
+      modalResult.className = "result-box result-error";
+      modalResult.textContent = `错误：${response.error}`;
+    } else {
+      modalResult.className = "result-box result-success";
+      modalResult.textContent = JSON.stringify(response.result, null, 2);
+    }
+  } catch (error) {
+    modalResult.hidden = false;
+    modalResult.className = "result-box result-error";
+    modalResult.textContent = `执行失败：${error.message}`;
+  } finally {
+    btnExecute.disabled = false;
+    btnExecute.textContent = "执行";
+  }
+}
+
 // ── Main ──────────────────────────────────────────────────────────────────────
 
 async function init() {
+  // Modal 事件绑定
+  document.getElementById("btnModalCancel").addEventListener("click", closeToolTestModal);
+  document.getElementById("btnModalExecute").addEventListener("click", executeCurrentTool);
+  document.getElementById("toolModal").addEventListener("click", (e) => {
+    if (e.target.id === "toolModal") {
+      closeToolTestModal();
+    }
+  });
+  
   // Footer links
   document.getElementById("linkGitHub").onclick = () => openTab(GITHUB_REPO);
   document.getElementById("linkDocs").onclick = () =>
@@ -164,6 +317,9 @@ async function init() {
     setWsStatus(false);
     return;
   }
+
+  // 保存当前 tabId 供工具测试使用
+  currentTabId = tab.id;
 
   // Ask background for this tab's state
   let info;
