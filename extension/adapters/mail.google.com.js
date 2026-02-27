@@ -556,7 +556,7 @@ window.__webmcpRegister({
   match: ['mail.google.com'],
   tools: [
     {
-      name: 'navigate_to_inbox',
+      name: 'mail.google.com.navigate_to_inbox',
       description:
         'Navigate to the Gmail inbox homepage. Use this before multi-step operations to ensure a clean starting state.',
       parameters: { type: 'object', properties: {}, required: [] },
@@ -564,7 +564,7 @@ window.__webmcpRegister({
     },
 
     {
-      name: 'search_emails',
+      name: 'mail.google.com.search_emails',
       description: 'Search Gmail by keyword and return matching email threads',
       parameters: {
         type: 'object',
@@ -580,7 +580,7 @@ window.__webmcpRegister({
     },
 
     {
-      name: 'get_unread_emails',
+      name: 'mail.google.com.get_unread_emails',
       description: 'Get unread emails from the Gmail inbox',
       parameters: {
         type: 'object',
@@ -596,7 +596,7 @@ window.__webmcpRegister({
     },
 
     {
-      name: 'open_email',
+      name: 'mail.google.com.open_email',
       description:
         'Open a Gmail email thread and return its full content including body and attachments. Use the email ID from search_emails or get_unread_emails.',
       parameters: {
@@ -613,7 +613,7 @@ window.__webmcpRegister({
     },
 
     {
-      name: 'download_attachment',
+      name: 'mail.google.com.download_attachment',
       description:
         'Download an attachment from the currently open Gmail email. You must call open_email first.',
       parameters: {
@@ -631,7 +631,7 @@ window.__webmcpRegister({
     },
 
     {
-      name: 'get_current_page_info',
+      name: 'mail.google.com.get_current_page_info',
       description:
         'Get the current Gmail page state — useful for checking whether you are in the inbox, reading an email, or composing.',
       parameters: { type: 'object', properties: {}, required: [] },

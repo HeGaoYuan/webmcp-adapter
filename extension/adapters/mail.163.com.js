@@ -527,7 +527,7 @@ window.__webmcpRegister({
   match: ["mail.163.com"],
   tools: [
     {
-      name: "navigate_to_inbox",
+      name: "mail.163.com.navigate_to_inbox",
       description: "返回163邮箱收件箱首页。当需要执行多步骤操作（如批量下载附件）或当前页面状态不明确时，使用此工具返回初始状态。",
       parameters: {
         type: "object",
@@ -538,7 +538,7 @@ window.__webmcpRegister({
     },
 
     {
-      name: "search_emails",
+      name: "mail.163.com.search_emails",
       description: "在163邮箱中搜索邮件，支持按关键词搜索",
       parameters: {
         type: "object",
@@ -554,7 +554,7 @@ window.__webmcpRegister({
     },
 
     {
-      name: "get_unread_emails",
+      name: "mail.163.com.get_unread_emails",
       description: "获取163邮箱收件箱中的未读邮件列表",
       parameters: {
         type: "object",
@@ -570,7 +570,7 @@ window.__webmcpRegister({
     },
 
     {
-      name: "open_email",
+      name: "mail.163.com.open_email",
       description: "打开163邮箱中的指定邮件，查看完整内容。邮件ID可以从search_emails或get_unread_emails的返回结果中获取",
       parameters: {
         type: "object",
@@ -586,7 +586,7 @@ window.__webmcpRegister({
     },
 
     {
-      name: "download_attachment",
+      name: "mail.163.com.download_attachment",
       description: "下载163邮箱中当前打开邮件的附件。使用前需要先调用open_email打开邮件。",
       parameters: {
         type: "object",
@@ -602,7 +602,7 @@ window.__webmcpRegister({
     },
 
     {
-      name: "get_current_page_info",
+      name: "mail.163.com.get_current_page_info",
       description: "获取当前163邮箱页面的状态信息，用于判断当前在哪个页面（收件箱、邮件详情等）",
       parameters: {
         type: "object",
@@ -614,7 +614,7 @@ window.__webmcpRegister({
 
     /*
     {
-      name: "compose_email",
+      name: "mail.163.com.compose_email",
       description: "在163邮箱中打开写信界面，填入收件人、主题和正文",
       parameters: {
         type: "object",
