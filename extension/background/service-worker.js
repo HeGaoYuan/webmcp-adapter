@@ -28,10 +28,16 @@ const REGISTRY_TTL_MS = 60 * 60 * 1000;
 let ws = null;
 
 /**
- * 工具注册表：tabId -> [{ name, description, parameters }]
- * @type {Map<number, Array<{name: string, description: string, parameters: object}>>}
+ * 工具注册表：domain -> { tools: [...], tabIds: Set<tabId> }
+ * @type {Map<string, {tools: Array<{name: string, description: string, parameters: object}>, tabIds: Set<number>}>}
  */
 const toolRegistry = new Map();
+
+/**
+ * Tab到域名的映射：tabId -> domain
+ * @type {Map<number, string>}
+ */
+const tabDomainMap = new Map();
 
 /**
  * 待安装适配器表：tabId -> adapterMeta（registry 里找到但未安装的 adapter）
@@ -71,8 +77,9 @@ function connectToNativeHost() {
     console.log("[WebMCP] Connected to native host");
     isConnecting = false;
 
-    for (const [tabId, tabTools] of toolRegistry.entries()) {
-      sendToNative({ type: "tools_updated", tabId, tools: tabTools });
+    // 同步所有域名的工具
+    for (const [domain, domainData] of toolRegistry.entries()) {
+      sendToNative({ type: "tools_updated", domain, tools: domainData.tools, tabCount: domainData.tabIds.size });
     }
 
     chrome.tabs.query({}, (tabs) => {
@@ -124,8 +131,20 @@ async function handleNativeMessage(msg) {
     sendToNative({ type: "list_tools_result", id: msg.id, tools });
 
   } else if (msg.type === "call_tool") {
-    const { tabId, toolName, args } = msg;
+    const { toolName, args } = msg;
     try {
+      // 从工具名提取域名
+      const domain = extractDomainFromToolName(toolName);
+      if (!domain) {
+        throw new Error(`无法从工具名 "${toolName}" 提取域名`);
+      }
+
+      // 查找匹配域名的tab
+      const tabId = await findTabByDomain(domain);
+      if (!tabId) {
+        throw new Error(`未找到域名 "${domain}" 的标签页。请先使用 open_browser 工具打开 https://${domain}`);
+      }
+
       const result = await callToolInTab(tabId, toolName, args);
       sendToNative({ type: "call_tool_result", id: msg.id, result });
     } catch (err) {
@@ -164,14 +183,86 @@ function sendToNative(msg) {
 
 // ─── 工具注册表管理 ─────────────────────────────────────────────────────────
 
+/**
+ * 比较两个工具列表是否相同（深度比较）
+ * @param {Array} tools1
+ * @param {Array} tools2
+ * @returns {boolean}
+ */
+function toolsAreEqual(tools1, tools2) {
+  if (tools1.length !== tools2.length) return false;
+
+  // 按名称排序后比较（避免顺序不同导致误判）
+  const sorted1 = [...tools1].sort((a, b) => a.name.localeCompare(b.name));
+  const sorted2 = [...tools2].sort((a, b) => a.name.localeCompare(b.name));
+
+  for (let i = 0; i < sorted1.length; i++) {
+    const t1 = sorted1[i];
+    const t2 = sorted2[i];
+
+    // 比较关键字段
+    if (t1.name !== t2.name ||
+        t1.description !== t2.description ||
+        JSON.stringify(t1.parameters) !== JSON.stringify(t2.parameters)) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
 function gatherAllTools() {
   const all = [];
-  for (const [tabId, tools] of toolRegistry.entries()) {
-    for (const tool of tools) {
-      all.push({ ...tool, tabId });
+  for (const [domain, domainData] of toolRegistry.entries()) {
+    for (const tool of domainData.tools) {
+      all.push({ ...tool, domain, tabCount: domainData.tabIds.size });
     }
   }
   return all;
+}
+
+/**
+ * 从工具名中提取域名
+ * 工具名格式：<domain>.<action>
+ * 例如：mail.163.com.search_emails -> mail.163.com
+ */
+function extractDomainFromToolName(toolName) {
+  // 找到最后一个点的位置，之前的部分是域名
+  const lastDotIndex = toolName.lastIndexOf('.');
+  if (lastDotIndex === -1) return null;
+  return toolName.substring(0, lastDotIndex);
+}
+
+/**
+ * 根据域名查找匹配的tab（按时间倒序，最新的优先）
+ * 找到后会激活该tab，让用户能看到操作过程
+ * @param {string} domain
+ * @returns {Promise<number|null>} tabId or null
+ */
+async function findTabByDomain(domain) {
+  const domainData = toolRegistry.get(domain);
+  if (!domainData || domainData.tabIds.size === 0) {
+    return null;
+  }
+
+  // 获取所有tab，按id倒序（id越大越新）
+  const tabs = await chrome.tabs.query({});
+  const sortedTabs = tabs.sort((a, b) => b.id - a.id);
+
+  // 找到第一个匹配域名的tab
+  for (const tab of sortedTabs) {
+    if (domainData.tabIds.has(tab.id)) {
+      // 激活该tab，让用户能看到操作过程
+      await chrome.tabs.update(tab.id, { active: true });
+      // 激活该tab所在的窗口
+      await chrome.windows.update(tab.windowId, { focused: true });
+
+      console.log(`[WebMCP] Activated tab ${tab.id} (${domain}) in window ${tab.windowId}`);
+      return tab.id;
+    }
+  }
+
+  return null;
 }
 
 async function callToolInTab(tabId, toolName, args) {
@@ -199,10 +290,20 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     (async () => {
       const { tabId, url } = msg;
       const isConnected = ws && ws.readyState === WebSocket.OPEN;
-      const tools = toolRegistry.get(tabId) ?? [];
 
-      if (tools.length > 0) {
-        sendResponse({ state: "active", tools, isConnected });
+      // 从URL提取域名
+      let domain;
+      try {
+        domain = new URL(url).hostname;
+      } catch {
+        sendResponse({ state: "none", isConnected });
+        return;
+      }
+
+      // 检查该域名是否有工具
+      const domainData = toolRegistry.get(domain);
+      if (domainData && domainData.tools.length > 0) {
+        sendResponse({ state: "active", tools: domainData.tools, isConnected });
         return;
       }
 
@@ -254,23 +355,61 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
 
   if (!sender.tab) return;
 
-  const tabId = sender.tab.id;
-
   if (msg.type === "register_tools") {
-    toolRegistry.set(tabId, msg.tools);
-    console.log(`[WebMCP] Tab ${tabId} registered ${msg.tools.length} tools`);
-    sendToNative({ type: "tools_updated", tabId, tools: msg.tools });
-    if (msg.tools.length > 0) {
-      setBadgeActive(tabId, msg.tools.length);
-    } else {
-      // Don't show "0 tools ready" — check if there's a known available adapter
-      const available = tabAvailableAdapter.get(tabId);
-      if (available) {
-        setBadgeAvailable(tabId, available.name);
-      } else {
-        clearBadge(tabId);
-      }
+    const newTools = msg.tools;
+    const tabId = sender.tab.id;
+    const tabUrl = sender.tab.url;
+
+    // 如果没有工具，不做任何处理（不触发 tools_updated）
+    if (!newTools || newTools.length === 0) {
+      console.log(`[WebMCP] Tab ${tabId} has no tools, skipping registration`);
+      sendResponse({ ok: true });
+      return true;
     }
+
+    // 从URL提取域名
+    let domain;
+    try {
+      domain = new URL(tabUrl).hostname;
+    } catch {
+      console.warn(`[WebMCP] Invalid tab URL: ${tabUrl}`);
+      sendResponse({ ok: false, error: "Invalid tab URL" });
+      return true;
+    }
+
+    // 获取该域名的现有数据
+    const domainData = toolRegistry.get(domain);
+    const oldTools = domainData?.tools ?? [];
+
+    // 检查工具列表是否真的变化了
+    const hasChanged = !domainData ||
+                       oldTools.length !== newTools.length ||
+                       !toolsAreEqual(oldTools, newTools);
+
+    if (hasChanged) {
+      // 更新或创建域名数据
+      if (!domainData) {
+        toolRegistry.set(domain, { tools: newTools, tabIds: new Set([tabId]) });
+      } else {
+        domainData.tools = newTools;
+        domainData.tabIds.add(tabId);
+      }
+
+      // 记录tab到域名的映射
+      tabDomainMap.set(tabId, domain);
+
+      console.log(`[WebMCP] Domain ${domain} registered ${newTools.length} tools (changed), tab count: ${toolRegistry.get(domain).tabIds.size}`);
+      sendToNative({ type: "tools_updated", domain, tools: newTools, tabCount: toolRegistry.get(domain).tabIds.size });
+    } else {
+      // 工具未变化，但仍需记录tab
+      if (domainData) {
+        domainData.tabIds.add(tabId);
+        tabDomainMap.set(tabId, domain);
+      }
+      console.log(`[WebMCP] Domain ${domain} tools unchanged, skipping notification, tab count: ${domainData.tabIds.size}`);
+    }
+
+    setBadgeActive(tabId, newTools.length);
     sendResponse({ ok: true });
   }
 
@@ -278,9 +417,22 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
 });
 
 chrome.tabs.onRemoved.addListener((tabId) => {
-  if (toolRegistry.has(tabId)) {
-    toolRegistry.delete(tabId);
-    sendToNative({ type: "tools_updated", tabId, tools: [] });
+  const domain = tabDomainMap.get(tabId);
+  if (domain) {
+    const domainData = toolRegistry.get(domain);
+    if (domainData) {
+      domainData.tabIds.delete(tabId);
+
+      // 如果该域名没有任何tab了，清除工具
+      if (domainData.tabIds.size === 0) {
+        toolRegistry.delete(domain);
+        console.log(`[WebMCP] Domain ${domain} has no tabs, clearing tools`);
+        sendToNative({ type: "tools_updated", domain, tools: [], tabCount: 0 });
+      } else {
+        console.log(`[WebMCP] Tab ${tabId} removed, domain ${domain} still has ${domainData.tabIds.size} tabs`);
+      }
+    }
+    tabDomainMap.delete(tabId);
   }
   tabAvailableAdapter.delete(tabId);
   clearBadge(tabId);
@@ -436,13 +588,26 @@ async function injectAdapters(tabId, url) {
       console.error(`[WebMCP] Failed to inject adapter "${adapterId}":`, err.message);
     }
   } else {
-    // 未安装：清除该 tab 中残留的工具注册（可能是 adapter 刚被删除后 extension 重载的情况）
-    if (toolRegistry.has(tabId)) {
-      toolRegistry.delete(tabId);
-      chrome.tabs.sendMessage(tabId, { type: "clear_tools" }, () => void chrome.runtime.lastError);
-      sendToNative({ type: "tools_updated", tabId, tools: [] });
-      console.log(`[WebMCP] Cleared stale tools for tab ${tabId} (adapter "${adapterId}" not installed)`);
+    // 未安装：清除该域名中残留的工具注册（可能是 adapter 刚被删除后 extension 重载的情况）
+    const domain = hostname;
+    const domainData = toolRegistry.get(domain);
+    if (domainData) {
+      // 从该域名的tab集合中移除当前tab
+      domainData.tabIds.delete(tabId);
+
+      // 如果该域名没有任何tab了，清除工具
+      if (domainData.tabIds.size === 0) {
+        toolRegistry.delete(domain);
+        sendToNative({ type: "tools_updated", domain, tools: [], tabCount: 0 });
+        console.log(`[WebMCP] Cleared stale tools for domain ${domain} (adapter "${adapterId}" not installed)`);
+      }
+
+      // 清除tab到域名的映射
+      tabDomainMap.delete(tabId);
     }
+
+    // 通知content script清除工具
+    chrome.tabs.sendMessage(tabId, { type: "clear_tools" }, () => void chrome.runtime.lastError);
 
     if (adapterMeta) {
       // Hub 有匹配但未安装：设橙色 badge，等用户通过 CLI 安装

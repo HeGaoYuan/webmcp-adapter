@@ -18,9 +18,11 @@ import {
 export class McpServer {
   /**
    * @param {import('./bridge.js').NativeMessagingBridge} bridge
+   * @param {import('./logger.js').DualLogger} logger
    */
-  constructor(bridge) {
+  constructor(bridge, logger = null) {
     this.bridge = bridge;
+    this.logger = logger;
     this._isConnected = false;
 
     this.server = new Server(
@@ -40,16 +42,26 @@ export class McpServer {
     this._setupHandlers();
   }
 
+  _log(message) {
+    if (this.logger) {
+      this.logger.log(message);
+    } else {
+      process.stderr.write(`[MCP] ${message}\n`);
+    }
+  }
+
   _setupHandlers() {
     // ── list_tools ─────────────────────────────────────────────────────────
     this.server.setRequestHandler(ListToolsRequestSchema, async () => {
+      this._log("← Received: list_tools request");
+
       const tools = this.bridge.getAllTools();
 
       // 添加系统级工具（浏览器控制）
       const systemTools = [
         {
           name: "open_browser",
-          description: "打开Chrome浏览器并访问指定网址。如果Chrome已打开，会在新标签页中打开。支持的网站：mail.163.com, mail.google.com",
+          description: "打开Chrome浏览器并访问指定网址。如果Chrome已打开，会在新标签页中打开。",
           inputSchema: {
             type: "object",
             properties: {
@@ -78,7 +90,10 @@ export class McpServer {
         }))
       ];
 
-      process.stderr.write(`[MCP] Returning ${allTools.length} tools (${systemTools.length} system + ${uniqueTools.size} web)\n`);
+      this._log(`→ Response: ${allTools.length} tools (${systemTools.length} system + ${uniqueTools.size} web)`);
+      if (uniqueTools.size > 0) {
+        this._log(`  Web tools: ${Array.from(uniqueTools.keys()).join(", ")}`);
+      }
 
       return {
         tools: allTools,
@@ -89,15 +104,22 @@ export class McpServer {
     this.server.setRequestHandler(CallToolRequestSchema, async (request) => {
       const { name: toolName, arguments: args } = request.params;
 
+      this._log(`← Received: call_tool request`);
+      this._log(`  Tool: ${toolName}`);
+      this._log(`  Args: ${JSON.stringify(args)}`);
+
       // 处理系统级工具
       if (toolName === "open_browser") {
         try {
+          this._log(`  Executing system tool: open_browser`);
           const result = await this.bridge.openBrowser(args.url);
           const text = typeof result === "string" ? result : JSON.stringify(result, null, 2);
+          this._log(`→ Response: Success`);
           return {
             content: [{ type: "text", text }],
           };
         } catch (err) {
+          this._log(`→ Response: Error - ${err.message}`);
           return {
             content: [{ type: "text", text: `Error: ${err.message}` }],
             isError: true,
@@ -105,45 +127,20 @@ export class McpServer {
         }
       }
 
-      // 处理网站工具：自动使用活跃tab
+      // 处理网站工具：由扩展自动查找匹配域名的tab
       try {
-        // 获取当前活跃的tab
-        const activeTabId = await this.bridge.getActiveTabId();
-        
-        if (activeTabId == null) {
-          return {
-            content: [{ 
-              type: "text", 
-              text: "Error: 没有找到活跃的浏览器标签页。请确保Chrome已打开并且有邮箱页面。" 
-            }],
-            isError: true,
-          };
-        }
+        // 调用工具（扩展会自动查找匹配域名的tab）
+        this._log(`  Calling tool "${toolName}"...`);
+        const result = await this.bridge.callTool(toolName, args ?? {});
 
-        // 检查活跃tab是否有工具注册
-        const allTools = this.bridge.getAllTools();
-        const tabTools = allTools.filter(t => t.tabId === activeTabId);
-        const hasTool = tabTools.some(t => t.name === toolName);
-        
-        if (!hasTool) {
-          return {
-            content: [{ 
-              type: "text", 
-              text: `Error: 当前页面不支持 "${toolName}" 操作。请确保当前标签页是邮箱页面（163mail或Gmail）。` 
-            }],
-            isError: true,
-          };
-        }
-
-        // 调用工具
-        process.stderr.write(`[MCP] Calling tool "${toolName}" on active tab ${activeTabId}\n`);
-        const result = await this.bridge.callTool(activeTabId, toolName, args ?? {});
-        
         const text = typeof result === "string" ? result : JSON.stringify(result, null, 2);
+        this._log(`→ Response: Success (${text.length} chars)`);
+
         return {
           content: [{ type: "text", text }],
         };
       } catch (err) {
+        this._log(`→ Response: Error - ${err.message}`);
         return {
           content: [{ type: "text", text: `Error: ${err.message}` }],
           isError: true,
@@ -153,23 +150,25 @@ export class McpServer {
 
     // 工具列表更新时通知 Claude Desktop 重新查询
     this.bridge.on("tools_updated", async () => {
-      process.stderr.write("[MCP] Tool registry updated, sending list_changed notification\n");
-      
+      this._log("⚡ Event: tools_updated from bridge");
+
       // 等待一小段时间确保 MCP 连接已建立
       await new Promise(resolve => setTimeout(resolve, 100));
-      
+
       try {
         if (this._isConnected) {
+          this._log("→ Sending: notifications/tools/list_changed");
           await this.server.notification({
             method: "notifications/tools/list_changed",
             params: {},
           });
+          this._log("  Notification sent successfully");
         } else {
-          process.stderr.write("[MCP] Skipping list_changed: MCP not connected yet\n");
+          this._log("  Skipped: MCP not connected yet");
         }
       } catch (err) {
         // 客户端可能尚未连接，忽略
-        process.stderr.write(`[MCP] Failed to send list_changed: ${err.message}\n`);
+        this._log(`  Failed to send notification: ${err.message}`);
       }
     });
   }
@@ -178,6 +177,6 @@ export class McpServer {
     const transport = new StdioServerTransport();
     await this.server.connect(transport);
     this._isConnected = true;
-    process.stderr.write("[MCP] WebMCP Adapter MCP Server started (stdio)\n");
+    this._log("✓ MCP Server connected and ready");
   }
 }

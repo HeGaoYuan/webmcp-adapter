@@ -46,6 +46,7 @@ Service:
 
 MCP server (for Claude Desktop):
   mcp                            Start MCP server over stdio
+  mcp-logs [-f, --follow]        Show MCP server logs
 
 Adapters:
   adapter list                             List installed adapters
@@ -186,13 +187,45 @@ async function cmdServiceLogs(follow) {
   }
 }
 
+// ─── Command: mcp logs ───────────────────────────────────────────────────────
+
+async function cmdMcpLogs(follow) {
+  const { readdirSync } = await import("fs");
+
+  try {
+    const files = readdirSync(WEBMCP_DIR)
+      .filter(f => f.startsWith("mcp-") && f.endsWith(".log"))
+      .map(f => ({ name: f, path: join(WEBMCP_DIR, f) }))
+      .sort((a, b) => b.name.localeCompare(a.name)); // 最新的在前
+
+    if (files.length === 0) {
+      console.log(`No MCP log files found in ${WEBMCP_DIR}`);
+      console.log("MCP logs are created when 'webmcp mcp' is started by an AI client.");
+      return;
+    }
+
+    const latestLog = files[0].path;
+    console.log(`Showing latest MCP log: ${latestLog}\n`);
+
+    if (follow) {
+      const tail = spawn("tail", ["-f", latestLog], { stdio: "inherit" });
+      process.on("SIGINT", () => { tail.kill(); process.exit(0); });
+      await new Promise(() => {}); // keep alive
+    } else {
+      process.stdout.write(await readFile(latestLog, "utf8"));
+    }
+  } catch (err) {
+    console.error(`Error reading MCP logs: ${err.message}`);
+  }
+}
+
 // ─── Service mode (WebSocket bridge only) ────────────────────────────────────
 
 async function runServiceMode() {
-  const { NativeMessagingBridge } = await import("./bridge.js");
+  const { WebSocketBridge } = await import("./bridge.js");
 
   process.stderr.write("[WebMCP] Starting WebSocket bridge...\n");
-  const bridge = new NativeMessagingBridge();
+  const bridge = new WebSocketBridge();
 
   await new Promise(resolve => setTimeout(resolve, 500));
   process.stderr.write(`[WebMCP] WebSocket server listening on ws://localhost:${WS_PORT}\n`);
@@ -207,23 +240,42 @@ async function runServiceMode() {
 
 async function runMcpMode() {
   const { McpServer } = await import("./mcp-server.js");
+  const { createLogger } = await import("./logger.js");
 
-  process.stderr.write("[WebMCP] Starting MCP server...\n");
+  // 初始化双重日志
+  const logger = createLogger("WebMCP");
+  await logger.init();
+
+  logger.log("Starting MCP server...");
 
   const running = await checkPortListening();
   if (!running) {
-    process.stderr.write("[WebMCP] ERROR: WebSocket service is not running!\n");
-    process.stderr.write("[WebMCP] Start it first: webmcp service start -d\n");
+    logger.log("ERROR: WebSocket service is not running!");
+    logger.log("Start it first: webmcp service start -d");
     process.exit(1);
   }
 
-  const bridge = new RemoteBridge();
+  const bridge = new WebSocketClient(logger);
   await bridge.connect();
-  process.stderr.write("[WebMCP] Connected to WebSocket service\n");
+  logger.log("Connected to WebSocket service");
 
-  const mcpServer = new McpServer(bridge);
+  const mcpServer = new McpServer(bridge, logger);
   await mcpServer.start();
-  process.stderr.write("[WebMCP] MCP server ready\n");
+  logger.log("MCP server ready");
+  logger.log(`Log file: ${logger.getLogPath()}`);
+
+  // 优雅关闭
+  process.on("SIGTERM", () => {
+    logger.log("Received SIGTERM, shutting down...");
+    logger.close();
+    process.exit(0);
+  });
+
+  process.on("SIGINT", () => {
+    logger.log("Received SIGINT, shutting down...");
+    logger.close();
+    process.exit(0);
+  });
 }
 
 // ─── Main ─────────────────────────────────────────────────────────────────────
@@ -286,6 +338,13 @@ async function main() {
     return;
   }
 
+  // mcp-logs — view MCP server logs
+  if (cmd === "mcp-logs") {
+    const follow = args.includes("-f") || args.includes("--follow");
+    await cmdMcpLogs(follow);
+    return;
+  }
+
   // --service (internal flag used by daemon spawn)
   if (cmd === "--service") {
     process.on("uncaughtException",  e => process.stderr.write(`[WebMCP] ${e.message}\n`));
@@ -299,15 +358,24 @@ async function main() {
   process.exit(1);
 }
 
-// ─── RemoteBridge (MCP mode only) ─────────────────────────────────────────────
+// ─── WebSocketClient (MCP mode only) ─────────────────────────────────────────────
 
-class RemoteBridge {
-  constructor() {
+class WebSocketClient {
+  constructor(logger = null) {
     this.ws = null;
-    this.toolRegistry = new Map();
+    this.toolRegistry = new Map(); // domain -> { tools, tabCount }
     this._pendingRequests = new Map();
     this._requestCounter = 0;
     this._listeners = new Map();
+    this.logger = logger;
+  }
+
+  _log(message) {
+    if (this.logger) {
+      this.logger.log(message);
+    } else {
+      process.stderr.write(`[WebSocketClient] ${message}\n`);
+    }
   }
 
   async connect() {
@@ -315,22 +383,22 @@ class RemoteBridge {
       this.ws = new WebSocket(`ws://localhost:${WS_PORT}`);
 
       this.ws.on("open", () => {
-        process.stderr.write("[RemoteBridge] Connected to service\n");
+        this._log("Connected to service");
         resolve();
       });
 
       this.ws.on("message", (data) => {
         try { this._handleMessage(JSON.parse(data.toString())); }
-        catch (e) { process.stderr.write(`[RemoteBridge] Parse error: ${e.message}\n`); }
+        catch (e) { this._log(`Parse error: ${e.message}`); }
       });
 
       this.ws.on("close", () => {
-        process.stderr.write("[RemoteBridge] Disconnected\n");
+        this._log("Disconnected");
         process.exit(1);
       });
 
       this.ws.on("error", (e) => {
-        process.stderr.write(`[RemoteBridge] Error: ${e.message}\n`);
+        this._log(`Error: ${e.message}`);
         reject(e);
       });
     });
@@ -338,13 +406,14 @@ class RemoteBridge {
 
   _handleMessage(msg) {
     if (msg.type === "tools_updated") {
-      const { tabId, tools } = msg;
+      const { domain, tools, tabCount } = msg;
       if (!tools?.length) {
-        this.toolRegistry.delete(tabId);
-        process.stderr.write(`[RemoteBridge] Cleared tools for tab ${tabId}\n`);
+        this.toolRegistry.delete(domain);
+        this._log(`← WebSocket: tools_updated (domain ${domain} cleared)`);
       } else {
-        this.toolRegistry.set(tabId, tools.map(t => ({ ...t, tabId })));
-        process.stderr.write(`[RemoteBridge] ${tools.length} tools registered for tab ${tabId}\n`);
+        this.toolRegistry.set(domain, { tools, tabCount });
+        this._log(`← WebSocket: tools_updated (domain ${domain})`);
+        this._log(`  Registered ${tools.length} tools (${tabCount} tabs): ${tools.map(t => t.name).join(", ")}`);
       }
       this._emit("tools_updated");
       return;
@@ -353,11 +422,25 @@ class RemoteBridge {
     if (msg.type === "tools_snapshot") {
       this.toolRegistry.clear();
       for (const tool of msg.tools) {
-        const id = tool.tabId;
-        if (!this.toolRegistry.has(id)) this.toolRegistry.set(id, []);
-        this.toolRegistry.get(id).push(tool);
+        const domain = tool.domain;
+        if (!this.toolRegistry.has(domain)) {
+          this.toolRegistry.set(domain, { tools: [], tabCount: tool.tabCount ?? 1 });
+        }
+        this.toolRegistry.get(domain).tools.push(tool);
       }
-      process.stderr.write(`[RemoteBridge] Snapshot: ${msg.tools.length} tools\n`);
+      this._log(`← WebSocket: tools_snapshot (${msg.tools.length} tools total)`);
+
+      // 按域名分组显示
+      const domainGroups = new Map();
+      for (const tool of msg.tools) {
+        if (!domainGroups.has(tool.domain)) domainGroups.set(tool.domain, []);
+        domainGroups.get(tool.domain).push(tool.name);
+      }
+      for (const [domain, toolNames] of domainGroups) {
+        const domainData = this.toolRegistry.get(domain);
+        this._log(`  Domain ${domain} (${domainData.tabCount} tabs): ${toolNames.join(", ")}`);
+      }
+
       this._emit("tools_updated");
       return;
     }
@@ -366,10 +449,19 @@ class RemoteBridge {
     if (!pending) return;
     this._pendingRequests.delete(msg.id);
 
-    if      (msg.type === "call_tool_result")       pending.resolve(msg.result);
-    else if (msg.type === "call_tool_error")         pending.reject(new Error(msg.error));
-    else if (msg.type === "get_active_tab_result")   pending.resolve(msg.tabId);
-    else if (msg.type === "get_active_tab_error")    pending.reject(new Error(msg.error));
+    if (msg.type === "call_tool_result") {
+      this._log(`← WebSocket: call_tool_result (request ${msg.id})`);
+      pending.resolve(msg.result);
+    } else if (msg.type === "call_tool_error") {
+      this._log(`← WebSocket: call_tool_error (request ${msg.id}): ${msg.error}`);
+      pending.reject(new Error(msg.error));
+    } else if (msg.type === "get_active_tab_result") {
+      this._log(`← WebSocket: get_active_tab_result (tab ${msg.tabId})`);
+      pending.resolve(msg.tabId);
+    } else if (msg.type === "get_active_tab_error") {
+      this._log(`← WebSocket: get_active_tab_error: ${msg.error}`);
+      pending.reject(new Error(msg.error));
+    }
   }
 
   _send(msg) {
@@ -381,19 +473,29 @@ class RemoteBridge {
     const id = String(++this._requestCounter);
     return new Promise((resolve, reject) => {
       this._pendingRequests.set(id, { resolve, reject });
+      this._log(`→ WebSocket: ${msg.type} (request ${id})`);
       this._send({ ...msg, id });
       setTimeout(() => {
         if (this._pendingRequests.has(id)) {
           this._pendingRequests.delete(id);
+          this._log(`  Request ${id} timed out after ${timeout}ms`);
           reject(new Error(`Request "${msg.type}" timed out`));
         }
       }, timeout);
     });
   }
 
-  getAllTools()              { return [...this.toolRegistry.values()].flat(); }
+  getAllTools() {
+    const all = [];
+    for (const [domain, domainData] of this.toolRegistry.entries()) {
+      for (const tool of domainData.tools) {
+        all.push({ ...tool, domain, tabCount: domainData.tabCount });
+      }
+    }
+    return all;
+  }
   getActiveTabId()          { return this._request({ type: "get_active_tab" }); }
-  callTool(tabId, name, a)  { return this._request({ type: "call_tool", tabId, toolName: name, args: a }); }
+  callTool(name, a)         { return this._request({ type: "call_tool", toolName: name, args: a }); }
   openBrowser(url)          { return this._request({ type: "open_browser", url }); }
 
   on(e, fn)   { (this._listeners.get(e) ?? (this._listeners.set(e, []), this._listeners.get(e))).push(fn); }

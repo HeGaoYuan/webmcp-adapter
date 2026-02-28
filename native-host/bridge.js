@@ -22,13 +22,13 @@ import { promisify } from "util";
 const execFileAsync = promisify(execFile);
 const WS_PORT = 3711;
 
-export class NativeMessagingBridge extends EventEmitter {
+export class WebSocketBridge extends EventEmitter {
   constructor() {
     super();
 
     /**
-     * 工具注册表：tabId -> [{ name, description, parameters, tabId }]
-     * @type {Map<number, Array>}
+     * 工具注册表：domain -> { tools: [...], tabCount: number }
+     * @type {Map<string, {tools: Array, tabCount: number}>}
      */
     this.toolRegistry = new Map();
 
@@ -150,13 +150,13 @@ export class NativeMessagingBridge extends EventEmitter {
     process.stderr.write(`[Bridge] <- extension: ${JSON.stringify(msg).substring(0, 200)}\n`);
 
     if (msg.type === "tools_updated") {
-      const { tabId, tools } = msg;
+      const { domain, tools, tabCount } = msg;
       if (!tools || tools.length === 0) {
-        this.toolRegistry.delete(tabId);
-        process.stderr.write(`[Bridge] Removed tools for tab ${tabId}\n`);
+        this.toolRegistry.delete(domain);
+        process.stderr.write(`[Bridge] Removed tools for domain ${domain}\n`);
       } else {
-        this.toolRegistry.set(tabId, tools.map(t => ({ ...t, tabId })));
-        process.stderr.write(`[Bridge] Registered ${tools.length} tools for tab ${tabId}\n`);
+        this.toolRegistry.set(domain, { tools, tabCount });
+        process.stderr.write(`[Bridge] Registered ${tools.length} tools for domain ${domain} (${tabCount} tabs)\n`);
       }
       this.emit("tools_updated");
       // 广播给所有连接的客户端（包括MCP进程）
@@ -187,14 +187,14 @@ export class NativeMessagingBridge extends EventEmitter {
   
   async _handleMcpRequest(msg) {
     process.stderr.write(`[Bridge] <- MCP: ${JSON.stringify(msg).substring(0, 200)}\n`);
-    
+
     // 将请求转发给Chrome扩展，并等待响应
     if (msg.type === 'call_tool') {
-      const { tabId, toolName, args, id } = msg;
+      const { toolName, args, id } = msg;
       process.stderr.write(`[Bridge] Forwarding call_tool to extension: ${toolName}\n`);
-      
+
       try {
-        const result = await this.callTool(tabId, toolName, args);
+        const result = await this.callTool(toolName, args);
         // 将结果发送回MCP进程
         this._broadcast({ type: 'call_tool_result', id, result });
       } catch (err) {
@@ -262,8 +262,10 @@ export class NativeMessagingBridge extends EventEmitter {
 
   getAllTools() {
     const all = [];
-    for (const tools of this.toolRegistry.values()) {
-      all.push(...tools);
+    for (const [domain, domainData] of this.toolRegistry.entries()) {
+      for (const tool of domainData.tools) {
+        all.push({ ...tool, domain, tabCount: domainData.tabCount });
+      }
     }
     return all;
   }
@@ -272,8 +274,8 @@ export class NativeMessagingBridge extends EventEmitter {
     return this._request({ type: "get_active_tab" });
   }
 
-  async callTool(tabId, toolName, args) {
-    return this._request({ type: "call_tool", tabId, toolName, args });
+  async callTool(toolName, args) {
+    return this._request({ type: "call_tool", toolName, args });
   }
 
   // ─── 浏览器控制 ─────────────────────────────────────────────────────────────
