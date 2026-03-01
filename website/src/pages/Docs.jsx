@@ -86,6 +86,7 @@ export default function Docs() {
   const navigate = useNavigate()
   const { lang } = useLang()
   const [content, setContent] = useState('')
+  const [contentType, setContentType] = useState('markdown')
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [sidebarOpen, setSidebarOpen] = useState(false)
@@ -99,23 +100,74 @@ export default function Docs() {
     if (!slug) navigate(`/docs/${defaultSlug}`, { replace: true })
   }, [slug, navigate])
 
-  // Fetch markdown content
+  // Fetch markdown or HTML content
   useEffect(() => {
     setLoading(true)
     setError(null)
     setHeadings([])
     setActiveId('')
-    fetch(`/docs/${lang}/${currentSlug}.md`)
+
+    // Try HTML first for specific pages, fallback to markdown
+    const timestamp = Date.now()
+    const htmlFirstPages = ['architecture'] // Pages that use HTML instead of markdown
+
+    const tryHtmlFirst = htmlFirstPages.includes(currentSlug)
+
+    const firstUrl = tryHtmlFirst
+      ? `/docs/${lang}/${currentSlug}.html?t=${timestamp}`
+      : `/docs/${lang}/${currentSlug}.md?t=${timestamp}`
+    const secondUrl = tryHtmlFirst
+      ? `/docs/${lang}/${currentSlug}.md?t=${timestamp}`
+      : `/docs/${lang}/${currentSlug}.html?t=${timestamp}`
+
+    fetch(firstUrl)
       .then(res => {
-        if (!res.ok) throw new Error(`${res.status}`)
-        return res.text()
+        if (res.ok) {
+          return res.text().then(content => ({
+            type: tryHtmlFirst ? 'html' : 'markdown',
+            content
+          }))
+        }
+        // First format not found, try second
+        return fetch(secondUrl)
+          .then(res2 => {
+            if (!res2.ok) throw new Error(`${res2.status}`)
+            return res2.text().then(content => ({
+              type: tryHtmlFirst ? 'markdown' : 'html',
+              content
+            }))
+          })
       })
-      .then(text => { setContent(text); setHeadings(extractHeadings(text)); setLoading(false) })
+      .then(({ type, content }) => {
+        setContent(content)
+        setContentType(type)
+        if (type === 'markdown') {
+          setHeadings(extractHeadings(content))
+        }
+        setLoading(false)
+      })
       .catch(() => {
         if (lang === 'zh') {
+          // Try English fallback
           return fetch(`/docs/en/${currentSlug}.md`)
-            .then(r => r.ok ? r.text() : Promise.reject())
-            .then(text => { setContent(text); setHeadings(extractHeadings(text)); setLoading(false) })
+            .then(res => {
+              if (res.ok) {
+                return res.text().then(md => ({ type: 'markdown', content: md }))
+              }
+              return fetch(`/docs/en/${currentSlug}.html`)
+                .then(htmlRes => {
+                  if (!htmlRes.ok) throw new Error('Not found')
+                  return htmlRes.text().then(html => ({ type: 'html', content: html }))
+                })
+            })
+            .then(({ type, content }) => {
+              setContent(content)
+              setContentType(type)
+              if (type === 'markdown') {
+                setHeadings(extractHeadings(content))
+              }
+              setLoading(false)
+            })
             .catch(() => { setError(true); setLoading(false) })
         }
         setError(true)
@@ -203,12 +255,16 @@ export default function Docs() {
 
           {!loading && !error && (
             <div className="prose-dark">
-              <ReactMarkdown
-                remarkPlugins={[remarkGfm]}
-                components={headingComponents}
-              >
-                {content}
-              </ReactMarkdown>
+              {contentType === 'markdown' ? (
+                <ReactMarkdown
+                  remarkPlugins={[remarkGfm]}
+                  components={headingComponents}
+                >
+                  {content}
+                </ReactMarkdown>
+              ) : (
+                <div dangerouslySetInnerHTML={{ __html: content }} />
+              )}
             </div>
           )}
 

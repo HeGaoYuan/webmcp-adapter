@@ -1,0 +1,280 @@
+<style>
+.arch-flow-container {
+  overflow-x: auto;
+  padding: 2rem 0;
+  margin: 2rem 0;
+}
+.arch-flow {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  min-width: 1100px;
+}
+.arch-box {
+  background: rgba(30, 30, 40, 0.8);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(100, 100, 120, 0.4);
+  border-radius: 12px;
+  padding: 1rem;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+}
+.arch-box-inner {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+.arch-icon {
+  width: 48px;
+  height: 48px;
+  border-radius: 8px;
+  border: 1px solid rgba(100, 100, 120, 0.5);
+  background: rgba(50, 50, 60, 0.2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.arch-icon svg {
+  color: #888;
+}
+.arch-title {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: #888;
+}
+.arch-subtitle {
+  font-size: 0.75rem;
+  font-family: monospace;
+  color: #666;
+}
+.arch-arrow {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+.arch-line {
+  width: 48px;
+  height: 2px;
+  background: #444;
+}
+.arch-arrow svg {
+  color: #666;
+}
+.blue-theme .arch-icon { background: rgba(59, 130, 246, 0.2); border-color: rgba(59, 130, 246, 0.5); }
+.blue-theme .arch-icon svg { color: #60a5fa; }
+.blue-theme .arch-title { color: #60a5fa; }
+.orange-theme .arch-icon { background: rgba(251, 146, 60, 0.2); border-color: rgba(251, 146, 60, 0.5); }
+.orange-theme .arch-icon svg { color: #fb923c; }
+.orange-theme .arch-title { color: #fb923c; }
+.purple-theme .arch-icon { background: rgba(168, 85, 247, 0.2); border-color: rgba(168, 85, 247, 0.5); }
+.purple-theme .arch-icon svg { color: #a78bfa; }
+.purple-theme .arch-title { color: #a78bfa; }
+.emerald-theme .arch-icon { background: rgba(52, 211, 153, 0.2); border-color: rgba(52, 211, 153, 0.5); }
+.emerald-theme .arch-icon svg { color: #34d399; }
+.emerald-theme .arch-title { color: #34d399; }
+</style>
+
+<h1>Architecture</h1>
+
+<p>WebMCP Adapter uses a <strong>standalone service architecture</strong> that decouples the WebSocket bridge from Claude Desktop's process lifecycle.</p>
+
+<h2>System Components</h2>
+
+<div class="arch-flow-container">
+  <div class="arch-flow">
+    <!-- AI Client -->
+    <div class="arch-box blue-theme">
+      <div class="arch-box-inner">
+        <div class="arch-icon">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+          </svg>
+        </div>
+        <div>
+          <div class="arch-title">AI Client</div>
+          <div class="arch-subtitle">Claude Desktop</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="arch-arrow">
+      <div class="arch-line"></div>
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M5 12h14M12 5l7 7-7 7" />
+      </svg>
+    </div>
+
+    <!-- MCP Server -->
+    <div class="arch-box orange-theme">
+      <div class="arch-box-inner">
+        <div class="arch-icon">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+            <rect x="2" y="3" width="20" height="14" rx="2" />
+            <path d="M8 21h8M12 17v4" />
+          </svg>
+        </div>
+        <div>
+          <div class="arch-title">MCP Server</div>
+          <div class="arch-subtitle">native-host/mcp-server.js</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="arch-arrow">
+      <div class="arch-line"></div>
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M5 12h14M12 5l7 7-7 7" />
+      </svg>
+    </div>
+
+    <!-- WebSocket Bridge -->
+    <div class="arch-box purple-theme">
+      <div class="arch-box-inner">
+        <div class="arch-icon">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+            <path d="M18 20V10M12 20V4M6 20v-6" />
+          </svg>
+        </div>
+        <div>
+          <div class="arch-title">WebSocket Service</div>
+          <div class="arch-subtitle">localhost:3711</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="arch-arrow">
+      <div class="arch-line"></div>
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M5 12h14M12 5l7 7-7 7" />
+      </svg>
+    </div>
+
+    <!-- Browser Extension -->
+    <div class="arch-box emerald-theme">
+      <div class="arch-box-inner">
+        <div class="arch-icon">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+            <rect x="3" y="3" width="18" height="18" rx="2" />
+            <path d="M3 9h18M9 21V9" />
+          </svg>
+        </div>
+        <div>
+          <div class="arch-title">Browser Extension</div>
+          <div class="arch-subtitle">Chrome Extension</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<h2>Component Roles</h2>
+
+<h3>MCP Server (<code>native-host/mcp-server.js</code>)</h3>
+
+<p><strong>Role:</strong> Protocol translator between Claude Desktop and the WebSocket Service.</p>
+
+<p><strong>Key responsibilities:</strong></p>
+<ul>
+<li>Implements the Model Context Protocol (MCP) specification</li>
+<li>Started automatically by Claude Desktop via stdio when the MCP server is configured</li>
+<li>Exposes discovered tools to Claude through the <code>tools/list</code> endpoint</li>
+<li>Receives tool call requests from Claude and forwards them to the WebSocket Service</li>
+<li>Returns tool execution results back to Claude</li>
+<li>Does not maintain any tool state itself — acts as a stateless proxy</li>
+</ul>
+
+<p><strong>Lifecycle:</strong> Starts when Claude Desktop launches, terminates when Claude closes. Each Claude session gets a fresh MCP server instance.</p>
+
+<h3>WebSocket Service (<code>native-host/bridge.js</code>)</h3>
+
+<p><strong>Role:</strong> Central message router and tool registry hub.</p>
+
+<p><strong>Key responsibilities:</strong></p>
+<ul>
+<li>Runs as an independent background process on <code>localhost:3711</code></li>
+<li>Maintains a live registry of all available tools, indexed by browser tab ID</li>
+<li>Accepts WebSocket connections from both the MCP Server and Browser Extension</li>
+<li>Routes tool call requests from MCP Server to the correct browser tab</li>
+<li>Broadcasts tool registration updates to all connected MCP clients</li>
+<li>Handles tab lifecycle events (tab closed → remove tools, tab opened → register tools)</li>
+</ul>
+
+<p><strong>Lifecycle:</strong> Long-lived daemon process. Survives Claude Desktop restarts. Started once with <code>node index.js --service</code> and runs continuously in the background.</p>
+
+<p><strong>Why independent?</strong> Decoupling the service from Claude's lifecycle ensures the tool registry persists across Claude sessions. When Claude restarts, it reconnects to the existing service and immediately sees all registered tools.</p>
+
+<h3>Browser Extension (<code>extension/</code>)</h3>
+
+<p><strong>Role:</strong> Bridge between the WebSocket Service and web pages.</p>
+
+<p><strong>Key responsibilities:</strong></p>
+<ul>
+<li><strong>Service Worker</strong> (<code>background/service-worker.js</code>):
+  <ul>
+    <li>Maintains WebSocket connection to <code>localhost:3711</code></li>
+    <li>Receives tool registrations from content scripts and forwards to the service</li>
+    <li>Receives tool call requests from the service and dispatches to the correct tab</li>
+    <li>Manages adapter installation and updates from the Hub registry</li>
+  </ul>
+</li>
+<li><strong>Content Script</strong> (<code>content/injector.js</code>):
+  <ul>
+    <li>Injected into every web page</li>
+    <li>Detects the current page URL and loads matching adapters</li>
+    <li>Exposes <code>window.__webmcpRegister()</code> API for adapters to register tools</li>
+    <li>Dispatches tool calls to adapter handler functions</li>
+    <li>Returns execution results back to the service worker</li>
+  </ul>
+</li>
+</ul>
+
+<p><strong>Security:</strong> Content scripts run in an isolated world, separate from the page's JavaScript context. Adapters can access the DOM but cannot interfere with page scripts.</p>
+
+<h3>Adapter (<code>extension/adapters/*.js</code>)</h3>
+
+<p><strong>Role:</strong> Site-specific tool implementations.</p>
+
+<p><strong>Key responsibilities:</strong></p>
+<ul>
+<li>Loaded dynamically when a matching URL is detected (e.g., <code>mail.163.com.js</code> for 163 Mail)</li>
+<li>Calls <code>window.__webmcpRegister(namespace, tools)</code> to declare available tools</li>
+<li>Each tool specifies:
+  <ul>
+    <li><code>name</code>: Tool identifier (e.g., <code>search_emails</code>)</li>
+    <li><code>description</code>: What the tool does</li>
+    <li><code>inputSchema</code>: JSON Schema for parameters</li>
+    <li><code>handler</code>: Async function that performs the actual DOM manipulation</li>
+  </ul>
+</li>
+<li>Handlers use standard DOM APIs (<code>querySelector</code>, <code>click</code>, <code>value</code>, etc.) to interact with the page</li>
+<li>Returns structured results (success/error, data payload) back to the caller</li>
+</ul>
+
+<p><strong>Example:</strong> The Gmail adapter provides tools like <code>search_emails</code>, <code>open_email</code>, <code>compose_email</code> — each implemented as a handler function that manipulates Gmail's DOM.</p>
+
+<h2>Message Flow Example</h2>
+
+<p>When Claude calls a tool (e.g., "search for emails about invoices"):</p>
+
+<ol>
+<li><strong>Claude Desktop</strong> → sends MCP <code>tools/call</code> request to MCP Server</li>
+<li><strong>MCP Server</strong> → forwards request via WebSocket to WebSocket Service</li>
+<li><strong>WebSocket Service</strong> → looks up which tab owns the tool, routes request to Browser Extension</li>
+<li><strong>Browser Extension</strong> → dispatches to the correct tab's content script</li>
+<li><strong>Content Script</strong> → calls the adapter's handler function</li>
+<li><strong>Adapter</strong> → manipulates the DOM (types in search box, clicks search button, extracts results)</li>
+<li><strong>Result flows back</strong> through the same chain in reverse</li>
+<li><strong>Claude Desktop</strong> → receives the search results and continues the conversation</li>
+</ol>
+
+<h2>Port and Security</h2>
+
+<p>The WebSocket service listens exclusively on <code>localhost:3711</code>. It is not reachable from the network. All communication stays on your machine.</p>
+
+<h2>Next Steps</h2>
+
+<ul>
+<li><a href="/docs/how-it-works">How It Works</a> — detailed message flow for tool registration and calling</li>
+<li><a href="/docs/adapter-system">Adapter System</a> — how adapters are loaded and sandboxed</li>
+<li><a href="/docs/writing-an-adapter">Writing an Adapter</a> — create your own site adapter</li>
+</ul>
