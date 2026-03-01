@@ -8,57 +8,66 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 1rem;
-  min-width: 1100px;
+  gap: 0;
+  min-width: 900px;
+  max-width: 100%;
 }
 .arch-box {
   background: rgba(30, 30, 40, 0.8);
   backdrop-filter: blur(10px);
   border: 1px solid rgba(100, 100, 120, 0.4);
   border-radius: 12px;
-  padding: 1rem;
+  padding: 0.875rem;
   box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+  flex-shrink: 0;
 }
 .arch-box-inner {
   display: flex;
   align-items: center;
-  gap: 0.75rem;
+  gap: 0.625rem;
 }
 .arch-icon {
-  width: 48px;
-  height: 48px;
+  width: 40px;
+  height: 40px;
   border-radius: 8px;
   border: 1px solid rgba(100, 100, 120, 0.5);
   background: rgba(50, 50, 60, 0.2);
   display: flex;
   align-items: center;
   justify-content: center;
+  flex-shrink: 0;
 }
 .arch-icon svg {
   color: #888;
+  width: 20px;
+  height: 20px;
 }
 .arch-title {
-  font-size: 0.875rem;
+  font-size: 0.8125rem;
   font-weight: 600;
   color: #888;
+  white-space: nowrap;
 }
 .arch-subtitle {
-  font-size: 0.75rem;
+  font-size: 0.6875rem;
   font-family: monospace;
   color: #666;
 }
 .arch-arrow {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
+  gap: 0;
+  flex-shrink: 0;
 }
 .arch-line {
-  width: 48px;
+  width: 32px;
   height: 2px;
   background: #444;
+  flex-shrink: 0;
 }
 .arch-arrow svg {
   color: #666;
+  flex-shrink: 0;
 }
 .blue-theme .arch-icon { background: rgba(59, 130, 246, 0.2); border-color: rgba(59, 130, 246, 0.5); }
 .blue-theme .arch-icon svg { color: #60a5fa; }
@@ -72,11 +81,19 @@
 .emerald-theme .arch-icon { background: rgba(52, 211, 153, 0.2); border-color: rgba(52, 211, 153, 0.5); }
 .emerald-theme .arch-icon svg { color: #34d399; }
 .emerald-theme .arch-title { color: #34d399; }
+
+@media (max-width: 900px) {
+  .arch-flow {
+    justify-content: flex-start;
+  }
+}
 </style>
 
 <h1>架构</h1>
 
-<p>WebMCP Adapter 采用<strong>独立服务架构</strong>,将 WebSocket 桥接与 Claude Desktop 的进程生命周期解耦。</p>
+<p>WebMCP Adapter 通过四层组件协作，让 AI 能够操作浏览器中的任何网站：AI 客户端通过 MCP 协议与 MCP 服务器通信，MCP 服务器通过 WebSocket 连接到独立运行的 WebSocket 服务，WebSocket 服务再与浏览器扩展通信，最终由扩展中的 adapter 脚本执行网页操作。</p>
+
+<p>系统采用<strong>独立服务架构</strong>：WebSocket 服务作为常驻后台进程运行，与 AI 客户端的生命周期解耦。这意味着即使 AI 客户端重启，工具注册状态也会保留。</p>
 
 <h2>系统组件</h2>
 
@@ -92,7 +109,7 @@
         </div>
         <div>
           <div class="arch-title">AI 客户端</div>
-          <div class="arch-subtitle">Claude Desktop</div>
+          <!-- <div class="arch-subtitle">Claude Desktop</div> -->
         </div>
       </div>
     </div>
@@ -115,7 +132,7 @@
         </div>
         <div>
           <div class="arch-title">MCP 服务器</div>
-          <div class="arch-subtitle">native-host/mcp-server.js</div>
+          <!-- <div class="arch-subtitle">native-host/mcp-server.js</div> -->
         </div>
       </div>
     </div>
@@ -137,7 +154,7 @@
         </div>
         <div>
           <div class="arch-title">WebSocket 服务</div>
-          <div class="arch-subtitle">localhost:3711</div>
+          <!-- <div class="arch-subtitle">localhost:3711</div> -->
         </div>
       </div>
     </div>
@@ -160,7 +177,7 @@
         </div>
         <div>
           <div class="arch-title">浏览器扩展</div>
-          <div class="arch-subtitle">Chrome 扩展</div>
+          <!-- <div class="arch-subtitle">Chrome 扩展</div> -->
         </div>
       </div>
     </div>
@@ -171,19 +188,19 @@
 
 <h3>MCP 服务器（<code>native-host/mcp-server.js</code>）</h3>
 
-<p><strong>角色：</strong>Claude Desktop 与 WebSocket 服务之间的协议转换器。</p>
+<p><strong>角色：</strong>实现 MCP 协议的服务器，向 AI 客户端暴露网站操作工具。</p>
 
 <p><strong>核心职责：</strong></p>
 <ul>
 <li>实现 Model Context Protocol (MCP) 规范</li>
-<li>配置 MCP 服务器后，由 Claude Desktop 通过 stdio 自动启动</li>
-<li>通过 <code>tools/list</code> 端点向 Claude 暴露已发现的工具</li>
-<li>接收 Claude 的工具调用请求并转发给 WebSocket 服务</li>
-<li>将工具执行结果返回给 Claude</li>
+<li>通过 <code>tools/list</code> 端点向 AI 客户端暴露已发现的工具</li>
+<li>通过 <code>tools/call</code> 端点接收工具调用请求</li>
+<li>支持 <code>notifications/tools/list_changed</code> 实时推送工具列表变化</li>
+<li>与 WebSocket 服务双向通信，转发所有消息</li>
 <li>本身不维护任何工具状态——充当无状态代理</li>
 </ul>
 
-<p><strong>生命周期：</strong>Claude Desktop 启动时启动，Claude 关闭时终止。每个 Claude 会话获得一个全新的 MCP 服务器实例。</p>
+<p><strong>生命周期：</strong>AI 客户端启动时启动，AI 客户端关闭时终止。每个 AI 客户端会话获得一个全新的 MCP 服务器实例。</p>
 
 <h3>WebSocket 服务（<code>native-host/bridge.js</code>）</h3>
 
@@ -192,65 +209,65 @@
 <p><strong>核心职责：</strong></p>
 <ul>
 <li>作为独立后台进程运行在 <code>localhost:3711</code></li>
-<li>维护所有可用工具的实时注册表，按浏览器 Tab ID 索引</li>
+<li>维护所有可用工具的实时注册表，按网站域名索引</li>
 <li>接受来自 MCP 服务器和浏览器扩展的 WebSocket 连接</li>
-<li>将 MCP 服务器的工具调用请求路由到正确的浏览器 Tab</li>
+<li>将工具调用请求路由到对应域名的浏览器 Tab</li>
 <li>向所有已连接的 MCP 客户端广播工具注册更新</li>
-<li>处理 Tab 生命周期事件（Tab 关闭 → 移除工具，Tab 打开 → 注册工具）</li>
+<li>处理域名生命周期事件（所有 Tab 关闭 → 移除工具，Tab 打开 → 注册工具）</li>
 </ul>
 
-<p><strong>生命周期：</strong>长期运行的守护进程。在 Claude Desktop 重启后仍然存活。使用 <code>node index.js --service</code> 启动一次后持续在后台运行。</p>
+<p><strong>生命周期：</strong>长期运行的守护进程。在 AI 客户端重启后仍然存活。使用 <code>webmcp service start -d</code> 启动一次后持续在后台运行。</p>
 
-<p><strong>为什么独立？</strong>将服务与 Claude 的生命周期解耦，确保工具注册表在 Claude 会话之间持久化。当 Claude 重启时，它会重新连接到现有服务并立即看到所有已注册的工具。</p>
+<p><strong>为什么独立？</strong>将服务与 AI 客户端的生命周期解耦，确保工具注册表在 AI 客户端会话之间持久化。当 AI 客户端重启时，它会重新连接到现有服务并立即看到所有已注册的工具。</p>
 
 <h3>浏览器扩展（<code>extension/</code>）</h3>
 
-<p><strong>角色：</strong>WebSocket 服务与网页之间的桥梁。</p>
+<p><strong>角色：</strong>在浏览器中运行，连接 WebSocket 服务并操作网页。</p>
 
 <p><strong>核心职责：</strong></p>
 <ul>
-<li><strong>Service Worker</strong>（<code>background/service-worker.js</code>）：
+<li><strong>后台进程</strong>（<code>background/service-worker.js</code>）：
   <ul>
     <li>维护到 <code>localhost:3711</code> 的 WebSocket 连接</li>
-    <li>接收来自 content script 的工具注册并转发给服务</li>
-    <li>接收来自服务的工具调用请求并分发到正确的 Tab</li>
+    <li>检测网页 URL 并注入匹配的已安装的 adapter 脚本</li>
+    <li>接收网页的工具注册并转发给 WebSocket 服务</li>
+    <li>接收 WebSocket 服务的工具调用请求，查找对应域名的 Tab 并转发</li>
     <li>管理从 Hub 注册表安装和更新 adapter</li>
   </ul>
 </li>
-<li><strong>Content Script</strong>（<code>content/injector.js</code>）：
+<li><strong>网页脚本</strong>（<code>content/injector.js</code>）：
   <ul>
-    <li>注入到每个网页中</li>
-    <li>检测当前页面 URL 并加载匹配的 adapter</li>
-    <li>为 adapter 暴露 <code>window.__webmcpRegister()</code> API 以注册工具</li>
-    <li>将工具调用分发给 adapter 的 handler 函数</li>
-    <li>将执行结果返回给 service worker</li>
+    <li>注入到每个网页中，暴露 <code>window.__webmcpRegister()</code> API</li>
+    <li>接收 adapter 的工具注册并上报给后台进程</li>
+    <li>接收后台进程的工具调用请求，分发给对应 adapter 的 handler 函数执行</li>
+    <li>将执行结果返回给后台进程</li>
   </ul>
 </li>
 </ul>
 
-<p><strong>安全性：</strong>Content script 运行在隔离环境中，与页面的 JavaScript 上下文分离。Adapter 可以访问 DOM，但不能干扰页面脚本。</p>
+<p><strong>安全性：</strong>网页脚本运行在隔离环境中，与页面的 JavaScript 上下文分离。Adapter 可以访问 DOM，但不能干扰页面脚本。</p>
 
 <h3>Adapter（<code>extension/adapters/*.js</code>）</h3>
 
-<p><strong>角色：</strong>特定网站的工具实现。</p>
+<p><strong>角色：</strong>特定网站的工具实现脚本。</p>
 
 <p><strong>核心职责：</strong></p>
 <ul>
-<li>检测到匹配的 URL 时动态加载（例如，<code>mail.163.com.js</code> 用于 163 邮箱）</li>
-<li>调用 <code>window.__webmcpRegister(namespace, tools)</code> 声明可用工具</li>
-<li>每个工具指定：
+<li>由后台进程根据网页 URL 自动注入（例如访问 Gmail 时注入 <code>mail.google.com.js</code>）</li>
+<li>调用 <code>window.__webmcpRegister()</code> 声明可用工具</li>
+<li>每个工具包含：
   <ul>
-    <li><code>name</code>：工具标识符（例如 <code>search_emails</code>）</li>
+    <li><code>name</code>：工具标识符（格式：<code>域名.操作</code>，如 <code>mail.google.com.search_emails</code>）</li>
     <li><code>description</code>：工具功能描述</li>
-    <li><code>inputSchema</code>：参数的 JSON Schema</li>
+    <li><code>parameters</code>：参数的 JSON Schema</li>
     <li><code>handler</code>：执行实际 DOM 操作的异步函数</li>
   </ul>
 </li>
 <li>Handler 使用标准 DOM API（<code>querySelector</code>、<code>click</code>、<code>value</code> 等）与页面交互</li>
-<li>返回结构化结果（成功/错误、数据负载）给调用者</li>
+<li>返回结构化结果（成功/错误、数据负载）给网页脚本</li>
 </ul>
 
-<p><strong>示例：</strong>Gmail adapter 提供 <code>search_emails</code>、<code>open_email</code>、<code>compose_email</code> 等工具——每个都实现为操作 Gmail DOM 的 handler 函数。</p>
+<p><strong>示例：</strong>Gmail adapter 提供 <code>mail.google.com.search_emails</code>、<code>mail.google.com.open_email</code>、<code>mail.google.com.get_unread_emails</code> 等工具——每个都实现为操作 Gmail DOM 的 handler 函数。</p>
 
 <h2>消息流示例</h2>
 
@@ -274,7 +291,6 @@
 <h2>下一步</h2>
 
 <ul>
-<li><a href="/docs/how-it-works">工作原理</a> — 工具注册和调用的详细消息流</li>
 <li><a href="/docs/adapter-system">Adapter 体系</a> — adapter 如何加载和沙箱隔离</li>
 <li><a href="/docs/writing-an-adapter">编写 Adapter</a> — 创建你自己的网站 adapter</li>
 </ul>

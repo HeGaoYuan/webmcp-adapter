@@ -9,6 +9,10 @@ For basic setup, follow [Quick Start](/docs/quick-start). This page covers conne
 
 ## AI client configuration
 
+> **Important:** For the best experience, use an AI client that supports the MCP `notifications/tools/list_changed` protocol. This allows the tool list to update automatically when you open new websites or install new adapters in the browser, without needing to restart the client.
+>
+> **Claude Code** has been tested and fully supports this feature. Support in other clients has not been thoroughly tested and may require manual restart to see new tools.
+
 ### Claude Desktop
 
 Config file:

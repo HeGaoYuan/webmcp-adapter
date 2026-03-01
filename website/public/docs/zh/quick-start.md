@@ -4,10 +4,9 @@
 
 ## 前置条件
 
-- macOS（Windows 支持规划中）
 - [Node.js](https://nodejs.org/) 18+
 - Google Chrome
-- [Claude Desktop](https://claude.ai/download)
+- [Claude Code](https://docs.claude.ai/docs/claude-code)
 
 ## 第一步 — 安装
 
@@ -30,7 +29,7 @@ webmcp extension-path
 
 1. 打开 `chrome://extensions`
 2. 开启右上角的**开发者模式**
-3. 点击**加载已解压的扩展程序**
+3. 点击**加载未打包的扩展程序**
 4. 选择上方命令打印的路径
 
 ## 第三步 — 启动 WebSocket 服务
@@ -47,19 +46,18 @@ webmcp service status
 
 ## 第四步 — 安装 Adapter
 
-Adapter 是针对特定网站的插件：
+打开你想要操作的网站（如 [mail.163.com](https://mail.163.com)），扩展会自动检测是否有可用的 adapter。如果有，扩展图标会显示橙色提示，点击即可安装。
+
+你也可以在 [Adapter Hub](/adapters) 查看所有可用的 adapter，或使用命令行安装：
 
 ```bash
 webmcp adapter install mail.163.com --reload
 webmcp adapter install mail.google.com --reload
 ```
 
-## 第五步 — 配置 Claude Desktop
+## 第五步 — 配置 Claude Code
 
-编辑配置文件：
-
-- **macOS：** `~/Library/Application Support/Claude/claude_desktop_config.json`
-- **Windows：** `%APPDATA%\Claude\claude_desktop_config.json`
+编辑配置文件 `~/.claude/settings.json`（如果不存在则创建）：
 
 ```json
 {
@@ -72,31 +70,23 @@ webmcp adapter install mail.google.com --reload
 }
 ```
 
-保存后重启 Claude Desktop。
+保存后重启 Claude Code。
 
-## 第六步 — 测试
+## 第六步 — 测试工具
 
-1. 在 Chrome 中打开支持的网站（如 [mail.163.com](https://mail.163.com)）并等待加载完成
-2. 问 Claude：`请列出可用的工具`
-3. 你应该看到 `search_emails`、`get_unread_emails` 等工具
+1. 在 Chrome 中打开已安装 adapter 的网站（如 [mail.163.com](https://mail.163.com)）并等待加载完成
+2. 在 Claude Code 中输入：`请列出可用的工具`
+3. 你应该看到该网站的工具列表（如 `mail_163_com_search_emails`、`mail_163_com_get_unread_emails` 等）
 
-## 验证清单
+## 第七步 — 完整测试
 
-- [ ] `webmcp service status` 显示服务正在运行
-- [ ] 扩展在 `chrome://extensions` 已启用
-- [ ] `webmcp adapter list` 显示目标网站的 adapter
-- [ ] Chrome 中已打开支持的网站
-- [ ] `claude_desktop_config.json` 中有 `"command": "webmcp", "args": ["mcp"]`
-- [ ] 修改配置后已重启 Claude Desktop
+现在可以让 Claude 执行实际操作了：
 
-## 常用服务命令
-
-```bash
-webmcp service start -d    # 在后台启动
-webmcp service stop        # 停止后台服务
-webmcp service status      # 查看状态
-webmcp service logs -f     # 实时查看日志
 ```
+"帮我搜索本月收件箱里所有关于发票的邮件"
+```
+
+Claude 会自动调用工具，在浏览器中执行搜索，并返回结果。
 
 ## 下一步
 

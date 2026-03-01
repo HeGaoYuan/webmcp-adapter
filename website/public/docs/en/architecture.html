@@ -8,57 +8,66 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 1rem;
-  min-width: 1100px;
+  gap: 0;
+  min-width: 900px;
+  max-width: 100%;
 }
 .arch-box {
   background: rgba(30, 30, 40, 0.8);
   backdrop-filter: blur(10px);
   border: 1px solid rgba(100, 100, 120, 0.4);
   border-radius: 12px;
-  padding: 1rem;
+  padding: 0.875rem;
   box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+  flex-shrink: 0;
 }
 .arch-box-inner {
   display: flex;
   align-items: center;
-  gap: 0.75rem;
+  gap: 0.625rem;
 }
 .arch-icon {
-  width: 48px;
-  height: 48px;
+  width: 40px;
+  height: 40px;
   border-radius: 8px;
   border: 1px solid rgba(100, 100, 120, 0.5);
   background: rgba(50, 50, 60, 0.2);
   display: flex;
   align-items: center;
   justify-content: center;
+  flex-shrink: 0;
 }
 .arch-icon svg {
   color: #888;
+  width: 20px;
+  height: 20px;
 }
 .arch-title {
-  font-size: 0.875rem;
+  font-size: 0.8125rem;
   font-weight: 600;
   color: #888;
+  white-space: nowrap;
 }
 .arch-subtitle {
-  font-size: 0.75rem;
+  font-size: 0.6875rem;
   font-family: monospace;
   color: #666;
 }
 .arch-arrow {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
+  gap: 0;
+  flex-shrink: 0;
 }
 .arch-line {
-  width: 48px;
+  width: 32px;
   height: 2px;
   background: #444;
+  flex-shrink: 0;
 }
 .arch-arrow svg {
   color: #666;
+  flex-shrink: 0;
 }
 .blue-theme .arch-icon { background: rgba(59, 130, 246, 0.2); border-color: rgba(59, 130, 246, 0.5); }
 .blue-theme .arch-icon svg { color: #60a5fa; }
@@ -72,11 +81,19 @@
 .emerald-theme .arch-icon { background: rgba(52, 211, 153, 0.2); border-color: rgba(52, 211, 153, 0.5); }
 .emerald-theme .arch-icon svg { color: #34d399; }
 .emerald-theme .arch-title { color: #34d399; }
+
+@media (max-width: 900px) {
+  .arch-flow {
+    justify-content: flex-start;
+  }
+}
 </style>
 
 <h1>Architecture</h1>
 
-<p>WebMCP Adapter uses a <strong>standalone service architecture</strong> that decouples the WebSocket bridge from Claude Desktop's process lifecycle.</p>
+<p>WebMCP Adapter enables AI to control any website in the browser through four cooperating layers: the AI client communicates with the MCP Server via MCP protocol, the MCP Server connects to an independently running WebSocket Service, the WebSocket Service communicates with the browser extension, and finally adapter scripts in the extension perform web page operations.</p>
+
+<p>The system uses a <strong>standalone service architecture</strong>: the WebSocket Service runs as a persistent background process, decoupled from the AI client's lifecycle. This means tool registrations persist even when the AI client restarts.</p>
 
 <h2>System Components</h2>
 
@@ -92,7 +109,7 @@
         </div>
         <div>
           <div class="arch-title">AI Client</div>
-          <div class="arch-subtitle">Claude Desktop</div>
+          <!-- <div class="arch-subtitle">Claude Desktop</div> -->
         </div>
       </div>
     </div>
@@ -115,7 +132,7 @@
         </div>
         <div>
           <div class="arch-title">MCP Server</div>
-          <div class="arch-subtitle">native-host/mcp-server.js</div>
+          <!-- <div class="arch-subtitle">native-host/mcp-server.js</div> -->
         </div>
       </div>
     </div>
@@ -137,7 +154,7 @@
         </div>
         <div>
           <div class="arch-title">WebSocket Service</div>
-          <div class="arch-subtitle">localhost:3711</div>
+          <!-- <div class="arch-subtitle">localhost:3711</div> -->
         </div>
       </div>
     </div>
@@ -160,7 +177,7 @@
         </div>
         <div>
           <div class="arch-title">Browser Extension</div>
-          <div class="arch-subtitle">Chrome Extension</div>
+          <!-- <div class="arch-subtitle">Chrome Extension</div> -->
         </div>
       </div>
     </div>
@@ -171,19 +188,19 @@
 
 <h3>MCP Server (<code>native-host/mcp-server.js</code>)</h3>
 
-<p><strong>Role:</strong> Protocol translator between Claude Desktop and the WebSocket Service.</p>
+<p><strong>Role:</strong> MCP protocol server that exposes website operation tools to AI clients.</p>
 
 <p><strong>Key responsibilities:</strong></p>
 <ul>
 <li>Implements the Model Context Protocol (MCP) specification</li>
-<li>Started automatically by Claude Desktop via stdio when the MCP server is configured</li>
-<li>Exposes discovered tools to Claude through the <code>tools/list</code> endpoint</li>
-<li>Receives tool call requests from Claude and forwards them to the WebSocket Service</li>
-<li>Returns tool execution results back to Claude</li>
+<li>Exposes discovered tools to AI clients through the <code>tools/list</code> endpoint</li>
+<li>Receives tool call requests via the <code>tools/call</code> endpoint</li>
+<li>Supports <code>notifications/tools/list_changed</code> for real-time tool list updates</li>
+<li>Bidirectional communication with WebSocket Service, forwarding all messages</li>
 <li>Does not maintain any tool state itself — acts as a stateless proxy</li>
 </ul>
 
-<p><strong>Lifecycle:</strong> Starts when Claude Desktop launches, terminates when Claude closes. Each Claude session gets a fresh MCP server instance.</p>
+<p><strong>Lifecycle:</strong> Starts when AI client launches, terminates when AI client closes. Each AI client session gets a fresh MCP server instance.</p>
 
 <h3>WebSocket Service (<code>native-host/bridge.js</code>)</h3>
 
@@ -192,43 +209,43 @@
 <p><strong>Key responsibilities:</strong></p>
 <ul>
 <li>Runs as an independent background process on <code>localhost:3711</code></li>
-<li>Maintains a live registry of all available tools, indexed by browser tab ID</li>
+<li>Maintains a live registry of all available tools, indexed by website domain</li>
 <li>Accepts WebSocket connections from both the MCP Server and Browser Extension</li>
-<li>Routes tool call requests from MCP Server to the correct browser tab</li>
+<li>Routes tool call requests to the corresponding domain's browser tab</li>
 <li>Broadcasts tool registration updates to all connected MCP clients</li>
-<li>Handles tab lifecycle events (tab closed → remove tools, tab opened → register tools)</li>
+<li>Handles domain lifecycle events (all tabs closed → remove tools, tab opened → register tools)</li>
 </ul>
 
-<p><strong>Lifecycle:</strong> Long-lived daemon process. Survives Claude Desktop restarts. Started once with <code>node index.js --service</code> and runs continuously in the background.</p>
+<p><strong>Lifecycle:</strong> Long-lived daemon process. Survives AI client restarts. Started once with <code>webmcp service start -d</code> and runs continuously in the background.</p>
 
-<p><strong>Why independent?</strong> Decoupling the service from Claude's lifecycle ensures the tool registry persists across Claude sessions. When Claude restarts, it reconnects to the existing service and immediately sees all registered tools.</p>
+<p><strong>Why independent?</strong> Decoupling the service from the AI client's lifecycle ensures the tool registry persists across AI client sessions. When the AI client restarts, it reconnects to the existing service and immediately sees all registered tools.</p>
 
 <h3>Browser Extension (<code>extension/</code>)</h3>
 
-<p><strong>Role:</strong> Bridge between the WebSocket Service and web pages.</p>
+<p><strong>Role:</strong> Runs in the browser, connects to WebSocket Service and manipulates web pages.</p>
 
 <p><strong>Key responsibilities:</strong></p>
 <ul>
-<li><strong>Service Worker</strong> (<code>background/service-worker.js</code>):
+<li><strong>Background Process</strong> (<code>background/service-worker.js</code>):
   <ul>
     <li>Maintains WebSocket connection to <code>localhost:3711</code></li>
-    <li>Receives tool registrations from content scripts and forwards to the service</li>
-    <li>Receives tool call requests from the service and dispatches to the correct tab</li>
+    <li>Detects page URLs and injects matching adapter scripts</li>
+    <li>Receives tool registrations from page scripts and forwards to WebSocket Service</li>
+    <li>Receives tool call requests from WebSocket Service, finds the corresponding domain's tab, and dispatches to it</li>
     <li>Manages adapter installation and updates from the Hub registry</li>
   </ul>
 </li>
-<li><strong>Content Script</strong> (<code>content/injector.js</code>):
+<li><strong>Page Script</strong> (<code>content/injector.js</code>):
   <ul>
-    <li>Injected into every web page</li>
-    <li>Detects the current page URL and loads matching adapters</li>
-    <li>Exposes <code>window.__webmcpRegister()</code> API for adapters to register tools</li>
-    <li>Dispatches tool calls to adapter handler functions</li>
-    <li>Returns execution results back to the service worker</li>
+    <li>Injected into every web page, exposes <code>window.__webmcpRegister()</code> API</li>
+    <li>Receives adapter tool registrations and reports to background process</li>
+    <li>Receives tool call requests from background process, dispatches to corresponding adapter handler functions</li>
+    <li>Returns execution results back to the background process</li>
   </ul>
 </li>
 </ul>
 
-<p><strong>Security:</strong> Content scripts run in an isolated world, separate from the page's JavaScript context. Adapters can access the DOM but cannot interfere with page scripts.</p>
+<p><strong>Security:</strong> Page scripts run in an isolated world, separate from the page's JavaScript context. Adapters can access the DOM but cannot interfere with page scripts.</p>
 
 <h3>Adapter (<code>extension/adapters/*.js</code>)</h3>
 
@@ -236,21 +253,21 @@
 
 <p><strong>Key responsibilities:</strong></p>
 <ul>
-<li>Loaded dynamically when a matching URL is detected (e.g., <code>mail.163.com.js</code> for 163 Mail)</li>
+<li>Injected by background process based on page URL (e.g., <code>mail.google.com.js</code> when visiting Gmail)</li>
 <li>Calls <code>window.__webmcpRegister(namespace, tools)</code> to declare available tools</li>
 <li>Each tool specifies:
   <ul>
-    <li><code>name</code>: Tool identifier (e.g., <code>search_emails</code>)</li>
+    <li><code>name</code>: Tool identifier (format: <code>domain.action</code>, e.g., <code>mail.google.com.search_emails</code>)</li>
     <li><code>description</code>: What the tool does</li>
-    <li><code>inputSchema</code>: JSON Schema for parameters</li>
+    <li><code>parameters</code>: JSON Schema for parameters</li>
     <li><code>handler</code>: Async function that performs the actual DOM manipulation</li>
   </ul>
 </li>
 <li>Handlers use standard DOM APIs (<code>querySelector</code>, <code>click</code>, <code>value</code>, etc.) to interact with the page</li>
-<li>Returns structured results (success/error, data payload) back to the caller</li>
+<li>Returns structured results (success/error, data payload) to the page script</li>
 </ul>
 
-<p><strong>Example:</strong> The Gmail adapter provides tools like <code>search_emails</code>, <code>open_email</code>, <code>compose_email</code> — each implemented as a handler function that manipulates Gmail's DOM.</p>
+<p><strong>Example:</strong> The Gmail adapter provides <code>mail.google.com.search_emails</code>, <code>mail.google.com.open_email</code>, <code>mail.google.com.get_unread_emails</code> — each implemented as a handler function that manipulates Gmail's DOM.</p>
 
 <h2>Message Flow Example</h2>
 
@@ -274,7 +291,6 @@
 <h2>Next Steps</h2>
 
 <ul>
-<li><a href="/docs/how-it-works">How It Works</a> — detailed message flow for tool registration and calling</li>
 <li><a href="/docs/adapter-system">Adapter System</a> — how adapters are loaded and sandboxed</li>
 <li><a href="/docs/writing-an-adapter">Writing an Adapter</a> — create your own site adapter</li>
 </ul>

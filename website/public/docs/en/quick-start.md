@@ -4,10 +4,9 @@ Get WebMCP Adapter running in 5 minutes.
 
 ## Prerequisites
 
-- macOS (Windows support is planned)
 - [Node.js](https://nodejs.org/) 18+
 - Google Chrome
-- [Claude Desktop](https://claude.ai/download)
+- [Claude Code](https://docs.claude.ai/docs/claude-code)
 
 ## Step 1 — Install
 
@@ -47,19 +46,18 @@ webmcp service status
 
 ## Step 4 — Install an adapter
 
-Adapters are site-specific plugins:
+Open a website you want to control (e.g., [mail.163.com](https://mail.163.com)). The extension will automatically detect if an adapter is available. If so, the extension icon will show an orange badge — click it to install.
+
+You can also browse all available adapters at [Adapter Hub](/adapters), or install via command line:
 
 ```bash
 webmcp adapter install mail.163.com --reload
 webmcp adapter install mail.google.com --reload
 ```
 
-## Step 5 — Configure Claude Desktop
+## Step 5 — Configure Claude Code
 
-Edit the config file:
-
-- **macOS:** `~/Library/Application Support/Claude/claude_desktop_config.json`
-- **Windows:** `%APPDATA%\Claude\claude_desktop_config.json`
+Edit the config file `~/.claude/settings.json` (create it if it doesn't exist):
 
 ```json
 {
@@ -72,31 +70,23 @@ Edit the config file:
 }
 ```
 
-Restart Claude Desktop after saving.
+Restart Claude Code after saving.
 
-## Step 6 — Test it
+## Step 6 — Test the tools
 
-1. Open a supported site in Chrome (e.g. [mail.163.com](https://mail.163.com)) and wait for it to load
-2. Ask Claude: `List the available tools`
-3. You should see tools like `search_emails`, `get_unread_emails`, etc.
+1. Open a website with an installed adapter in Chrome (e.g., [mail.163.com](https://mail.163.com)) and wait for it to load
+2. In Claude Code, type: `List the available tools`
+3. You should see the website's tools (e.g., `mail_163_com_search_emails`, `mail_163_com_get_unread_emails`, etc.)
 
-## Verification checklist
+## Step 7 — Full test
 
-- [ ] `webmcp service status` shows service is running
-- [ ] Extension is enabled at `chrome://extensions`
-- [ ] `webmcp adapter list` shows the adapter for your site
-- [ ] Supported site is open in Chrome
-- [ ] `claude_desktop_config.json` has `"command": "webmcp", "args": ["mcp"]`
-- [ ] Claude Desktop was restarted after config change
+Now you can have Claude perform actual operations:
 
-## Common service commands
-
-```bash
-webmcp service start -d    # Start in background
-webmcp service stop        # Stop background service
-webmcp service status      # Check status
-webmcp service logs -f     # Stream live logs
 ```
+"Search my inbox for all emails about invoices this month"
+```
+
+Claude will automatically call the tools, execute the search in the browser, and return the results.
 
 ## Next steps
 
