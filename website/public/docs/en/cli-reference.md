@@ -62,6 +62,8 @@ Print the service log file (`~/.webmcp/service.log`).
 
 ## mcp
 
+### `webmcp mcp`
+
 ```
 webmcp mcp
 ```
@@ -81,6 +83,22 @@ Start the MCP server over stdio. This is the command that Claude Desktop (or any
 > ```
 
 The service (`webmcp service start -d`) must be running before the MCP server can connect.
+
+### `webmcp mcp-logs`
+
+```
+webmcp mcp-logs [-f | --follow]
+```
+
+View MCP server log files. Logs are saved to `~/.webmcp/mcp-{timestamp}.log`, and a new file is created each time `webmcp mcp` is started.
+
+- **`-f` / `--follow`** — stream new log lines in real time (like `tail -f`). Press `Ctrl+C` to exit
+
+**Examples:**
+```bash
+webmcp mcp-logs         # view latest log
+webmcp mcp-logs -f      # monitor logs in real time (useful for debugging)
+```
 
 ---
 
@@ -184,9 +202,12 @@ Print a summary of all commands.
 
 ## Log files
 
-When running the service as a daemon, logs are written to:
-
 | File | Purpose |
 |---|---|
-| `~/.webmcp/service.pid` | PID of the background service process |
-| `~/.webmcp/service.log` | Combined stdout + stderr from the service |
+| `~/.webmcp/service.pid` | PID of background service process |
+| `~/.webmcp/service.log` | WebSocket Bridge service logs |
+| `~/.webmcp/mcp-{timestamp}.log` | MCP server logs. New file created each time `webmcp mcp` is started |
+
+> **Viewing logs:**
+> - WebSocket Bridge logs: `webmcp service logs [-f]`
+> - MCP server logs: `webmcp mcp-logs [-f]`

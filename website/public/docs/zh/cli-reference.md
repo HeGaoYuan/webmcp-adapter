@@ -62,13 +62,15 @@ webmcp service logs [-f | --follow]
 
 ## mcp
 
+### `webmcp mcp`
+
 ```
 webmcp mcp
 ```
 
-通过 stdio 启动 MCP 服务器。这是 Claude Desktop（或任意 MCP 客户端）应调用的命令。MCP 服务器会连接到正在运行的 WebSocket bridge，并向 AI 客户端暴露浏览器工具。
+通过 stdio 启动 MCP 服务器。这是 Claude Code（或任意 MCP 客户端）应调用的命令。MCP 服务器会连接到正在运行的 WebSocket bridge，并向 AI 客户端暴露浏览器工具。
 
-> **Claude Desktop 配置：**
+> **Claude Code 配置：**
 > ```json
 > {
 >   "mcpServers": {
@@ -81,6 +83,22 @@ webmcp mcp
 > ```
 
 MCP 服务器启动前，必须先运行服务（`webmcp service start -d`）。
+
+### `webmcp mcp-logs`
+
+```
+webmcp mcp-logs [-f | --follow]
+```
+
+查看 MCP 服务器的日志文件。日志文件保存在 `~/.webmcp/mcp-{timestamp}.log`，每次启动 `webmcp mcp` 时创建新文件。
+
+- **`-f` / `--follow`** — 实时流式输出新日志行（类似 `tail -f`），按 `Ctrl+C` 退出
+
+**示例：**
+```bash
+webmcp mcp-logs         # 查看最新日志
+webmcp mcp-logs -f      # 实时监控日志（调试时使用）
+```
 
 ---
 
@@ -184,9 +202,12 @@ webmcp --help
 
 ## 日志文件
 
-以 daemon 模式运行服务时，日志写入以下位置：
-
 | 文件 | 用途 |
 |---|---|
 | `~/.webmcp/service.pid` | 后台服务进程的 PID |
-| `~/.webmcp/service.log` | 服务的 stdout + stderr 合并输出 |
+| `~/.webmcp/service.log` | WebSocket Bridge 服务的日志 |
+| `~/.webmcp/mcp-{timestamp}.log` | MCP 服务器日志，每次启动 `webmcp mcp` 时创建新文件 |
+
+> **查看日志：**
+> - WebSocket Bridge 日志：`webmcp service logs [-f]`
+> - MCP 服务器日志：`webmcp mcp-logs [-f]`
