@@ -28,12 +28,18 @@ const execFileAsync = promisify(execFile);
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
 const EXTENSION_ADAPTERS_DIR = resolve(__dirname, "../extension/adapters");
-// raw.githubusercontent.com: max-age=300（5分钟），内容变化后及时生效
-// 不用 jsDelivr：其 max-age=604800（7天）不适合频繁变化的 registry
-const HUB_REGISTRY_URL =
-  "https://raw.githubusercontent.com/HeGaoYuan/webmcp-adapter/main/hub/registry.json";
-const HUB_ADAPTER_BASE_URL =
-  "https://raw.githubusercontent.com/HeGaoYuan/webmcp-adapter/main/hub/adapters";
+
+// Hub URL 配置
+// - 默认使用官方 Hub: https://webmcphub.dev
+// - 企业内网或私有部署可设置环境变量覆盖:
+//   export WEBMCP_HUB="https://your-hub.company.com"
+//   export WEBMCP_HUB="https://github.com/HeGaoYuan/webmcp-adapter"
+//   export WEBMCP_HUB="https://gitlab.company.com/user/repo"
+const HUB_URL = process.env.WEBMCP_HUB || "https://webmcphub.dev";
+
+// Registry 和 Adapters URL 自动构建
+const HUB_REGISTRY_URL = `${HUB_URL}/hub/registry.json`;
+const HUB_ADAPTER_BASE_URL = `${HUB_URL}/hub/adapters`;
 const WS_PORT = 3711;
 
 // ─── Entry point ──────────────────────────────────────────────────────────────

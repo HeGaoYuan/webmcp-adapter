@@ -1,4 +1,4 @@
-# Adapter System
+# Adapter
 
 An adapter is a small JavaScript file that teaches WebMCP how to interact with a specific website. Anyone can write one and share it via a pull request.
 

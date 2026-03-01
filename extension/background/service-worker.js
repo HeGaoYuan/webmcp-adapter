@@ -12,15 +12,30 @@
 
 const WS_URL = "ws://localhost:3711";
 
-// Hub registry 地址（raw.githubusercontent.com，max-age=300，内容变化后 5 分钟内生效）
-// 不用 jsDelivr：其 max-age=604800（7天）会导致浏览器 HTTP 缓存长期返回旧数据
-const REGISTRY_URL = "https://raw.githubusercontent.com/HeGaoYuan/webmcp-adapter/main/hub/registry.json";
+// Hub URL 配置
+// - 默认使用官方 Hub: https://webmcphub.dev
+// - 用户可在扩展 Popup 中自定义 Hub 地址（保存到 chrome.storage.local）
+// - 支持多种源：官方网站、GitHub 仓库、企业私有部署等
+const DEFAULT_HUB_URL = "https://webmcphub.dev";
 
-// adapter 代码基础路径（CLI 下载用，扩展本身不再从网络加载 adapter）
-const ADAPTER_BASE_URL = "https://raw.githubusercontent.com/HeGaoYuan/webmcp-adapter/main/hub/adapters";
-
-// registry 在 chrome.storage.local 中的缓存有效期（1小时，配合 raw GitHub 的 5 分钟 HTTP 缓存）
+// registry 在 chrome.storage.local 中的缓存有效期（1小时）
 const REGISTRY_TTL_MS = 60 * 60 * 1000;
+
+// ─── Hub 配置读取 ────────────────────────────────────────────────────────────
+
+/**
+ * 获取 Hub 配置（registry 和 adapters URL）
+ * @returns {Promise<{url: string, registry: string, adapters: string}>}
+ */
+async function getHubConfig() {
+  const { hubConfig } = await chrome.storage.local.get("hubConfig");
+  const hubUrl = hubConfig?.url || DEFAULT_HUB_URL;
+  return {
+    url: hubUrl,
+    registry: `${hubUrl}/hub/registry.json`,
+    adapters: `${hubUrl}/hub/adapters`,
+  };
+}
 
 // ─── 状态 ──────────────────────────────────────────────────────────────────
 
@@ -470,20 +485,21 @@ async function getCachedRegistry() {
 }
 
 /**
- * 从 CDN 拉取 registry.json 并缓存
+ * 从 Hub 拉取 registry.json 并缓存
  * @returns {Promise<object|null>}
  */
 async function fetchAndCacheRegistry() {
   try {
-    // cache: 'no-cache' 绕过浏览器 HTTP 缓存，确保拿到 GitHub 的最新内容
-    const resp = await fetch(REGISTRY_URL, { cache: "no-cache" });
+    const { registry: registryUrl } = await getHubConfig();
+    // cache: 'no-cache' 绕过浏览器 HTTP 缓存，确保拿到 Hub 的最新内容
+    const resp = await fetch(registryUrl, { cache: "no-cache" });
     if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
     const registry = await resp.json();
     await chrome.storage.local.set({
       registry,
       registry_fetched_at: Date.now(),
     });
-    console.log(`[WebMCP] Registry fetched: ${registry.adapters?.length ?? 0} adapters`);
+    console.log(`[WebMCP] Registry fetched from ${registryUrl}: ${registry.adapters?.length ?? 0} adapters`);
     return registry;
   } catch (err) {
     console.warn("[WebMCP] Failed to fetch registry:", err.message);

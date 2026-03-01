@@ -57,5 +57,5 @@ Claude 拿到的不是 DOM 句柄，而是 `search_emails(keyword)` 或 `get_unr
 ## 相关文档
 
 - [架构](/docs/architecture) — 内部组件图
-- [Adapter 体系](/docs/adapter-system) — Adapter 如何加载和隔离
+- [Adapter](/docs/adapter-system) — Adapter 如何加载和隔离
 - [编写 Adapter](/docs/writing-an-adapter) — 为新网站贡献 Adapter

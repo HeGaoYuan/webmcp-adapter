@@ -89,16 +89,6 @@ export default function HowItWorksAnimation({ lang = 'en' }) {
   const aiWindowRef = useRef(null)
   const browserWindowRef = useRef(null)
 
-  // Debug: Log window heights
-  useEffect(() => {
-    const logHeights = () => {
-      if (aiWindowRef.current && browserWindowRef.current) {
-        console.log('📏 Heights - AI:', aiWindowRef.current.offsetHeight, 'Browser:', browserWindowRef.current.offsetHeight)
-      }
-    }
-    const interval = setInterval(logHeights, 1000)
-    return () => clearInterval(interval)
-  }, [])
 
   const promptText = lang === 'zh' ? PROMPT_TEXT_ZH : PROMPT_TEXT
   const thoughts = lang === 'zh' ? AI_THOUGHTS_ZH : AI_THOUGHTS
@@ -117,8 +107,6 @@ export default function HowItWorksAnimation({ lang = 'en' }) {
     const step = STEPS[stepIdx]
     if (!step) return
 
-    console.log('🎬 Step:', step.id, 'Phase:', step.phase, 'Tool:', step.tool)
-
     if (step.phase === 'ai-thinking') {
       thoughts.forEach((thought, i) => {
         setTimeout(() => setAiThoughts(prev => [...prev, thought]), i * 400)
@@ -126,37 +114,30 @@ export default function HowItWorksAnimation({ lang = 'en' }) {
     }
 
     if (step.phase === 'tool-call' && step.tool) {
-      console.log('🔧 Tool call:', step.tool)
       setCurrentToolCall(step.tool)
     }
     if (step.phase === 'browser-opening') {
-      console.log('🌐 Browser opening')
       setBrowserActions([actions[0], actions[1]])
       setExtensionActive(true)
       setTimeout(() => setShowInbox(true), 500)
     }
     if (step.phase === 'browser-searching') {
-      console.log('🔍 Browser searching')
       setBrowserActions(prev => [...prev, actions[2]])
       setTimeout(() => { setShowInbox(false); setShowSearchResults(true) }, 600)
     }
     if (step.phase === 'opening-email-1') {
-      console.log('📧 Opening email 1')
       setBrowserActions(prev => [...prev, actions[3], actions[4]])
       setOpenedEmailIndex(0)
     }
     if (step.phase === 'opening-email-2') {
-      console.log('📧 Opening email 2')
       setBrowserActions(prev => [...prev, actions[5], actions[6]])
       setOpenedEmailIndex(1)
     }
     if (step.phase === 'opening-email-3') {
-      console.log('📧 Opening email 3')
       setBrowserActions(prev => [...prev, actions[7], actions[8]])
       setOpenedEmailIndex(2)
     }
     if (step.phase === 'ai-response') {
-      console.log('💬 AI responding')
       const response = lang === 'zh' ? '✓ 已打开 Gmail 并分析邮件。\n\n找到 12 封 Anthropic 账单邮件。\n2025 年 Claude API 总消费：$284.50' : '✓ Opened Gmail and analyzed emails.\n\nFound 12 Anthropic billing emails.\nTotal Claude API spend in 2025: $284.50'
       let i = 0
       const interval = setInterval(() => {
@@ -169,7 +150,6 @@ export default function HowItWorksAnimation({ lang = 'en' }) {
     timerRef.current = setTimeout(() => {
       const next = stepIdx + 1
       if (next >= STEPS.length) {
-        console.log('🔄 Resetting animation')
         setTimeout(() => {
           setStepIdx(0); setAiThoughts([]); setBrowserActions([]); setShowInbox(false); setShowSearchResults(false); setOpenedEmailIndex(-1); setAiResponse(''); setCurrentToolCall(null); setExtensionActive(false)
         }, 1000)

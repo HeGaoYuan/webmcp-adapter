@@ -13,7 +13,8 @@ export const docsSidebar = [
     titleZh: '核心概念',
     items: [
       { slug: 'architecture',          titleEn: 'Architecture',               titleZh: '架构' },
-      { slug: 'adapter-system',        titleEn: 'Adapter System',             titleZh: 'Adapter 体系' },
+      { slug: 'adapter',        titleEn: 'Adapter',             titleZh: 'Adapter' },
+      { slug: 'hub',                    titleEn: 'Hub',                       titleZh: 'Hub' },
       { slug: 'vs-browser-automation', titleEn: 'vs. Browser Automation MCPs', titleZh: '与浏览器自动化 MCP 对比' },
     ],
   },

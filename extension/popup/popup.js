@@ -2,6 +2,99 @@ const GITHUB_REPO = "https://github.com/HeGaoYuan/webmcp-adapter";
 const GITHUB_NEW_ISSUE = `${GITHUB_REPO}/issues/new?template=adapter-request.md`;
 const GITHUB_CONTRIBUTING = `${GITHUB_REPO}/blob/main/hub/CONTRIBUTING.md`;
 
+// 默认 Hub 地址
+const DEFAULT_HUB_URL = "https://webmcphub.dev";
+
+// ── Hub Config ───────────────────────────────────────────────────────────────
+
+/**
+ * 获取 Hub 配置
+ * @returns {Promise<{url: string, isCustom: boolean, lastModified?: number}>}
+ */
+async function getHubConfig() {
+  const { hubConfig } = await chrome.storage.local.get("hubConfig");
+  const hubUrl = hubConfig?.url || DEFAULT_HUB_URL;
+  const isCustom = !!hubConfig?.url && hubConfig.url !== DEFAULT_HUB_URL;
+  return {
+    url: hubUrl,
+    isCustom,
+    lastModified: hubConfig?.lastModified,
+  };
+}
+
+/**
+ * 保存 Hub 配置
+ * @param {string} hubUrl - Hub 完整地址（如 https://webmcphub.dev 或 https://github.com/HeGaoYuan/webmcp-adapter）
+ */
+async function saveHubConfig(hubUrl) {
+  // 验证 URL 格式：必须以 https:// 或 http:// 开头
+  if (hubUrl && !/^https?:\/\/.+/.test(hubUrl)) {
+    throw new Error("Hub 地址格式无效，应以 https:// 或 http:// 开头（如 https://webmcphub.dev）");
+  }
+
+  const newHubUrl = hubUrl || DEFAULT_HUB_URL;
+  await chrome.storage.local.set({
+    hubConfig: {
+      url: newHubUrl,
+      lastModified: Date.now(),
+    },
+  });
+  // 保存后刷新扩展的 registry 缓存
+  await chrome.runtime.sendMessage({ type: "refresh_registry" });
+}
+
+/**
+ * 恢复默认 Hub 配置
+ */
+async function restoreDefaultHub() {
+  await chrome.storage.local.remove("hubConfig");
+  // 刷新扩展的 registry 缓存
+  await chrome.runtime.sendMessage({ type: "refresh_registry" });
+}
+
+/**
+ * 更新 Hub 信息显示
+ */
+async function updateHubInfo() {
+  const config = await getHubConfig();
+  const hubUrlEl = document.getElementById("hubUrl");
+  // 只显示域名部分（去除 https://）
+  const displayUrl = config.url.replace(/^https?:\/\//, "");
+  hubUrlEl.textContent = displayUrl;
+  hubUrlEl.classList.toggle("custom", config.isCustom);
+
+  // 显示最后修改时间
+  const lastModifiedEl = document.getElementById("hubLastModified");
+  if (config.lastModified) {
+    const date = new Date(config.lastModified);
+    lastModifiedEl.textContent = `上次修改：${date.toLocaleString()}`;
+  } else {
+    lastModifiedEl.textContent = "";
+  }
+}
+
+/**
+ * 切换 Hub 配置面板显示/隐藏
+ */
+function toggleHubConfigPanel() {
+  const panel = document.getElementById("hubConfigPanel");
+  const isHidden = panel.hidden;
+  panel.hidden = !isHidden;
+
+  // 打开面板时，加载当前配置
+  if (isHidden) {
+    loadHubConfigToForm();
+  }
+}
+
+/**
+ * 将当前 Hub 配置加载到表单
+ */
+async function loadHubConfigToForm() {
+  const config = await getHubConfig();
+  document.getElementById("hubInput").value = config.isCustom ? config.url : "";
+}
+
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
 function openTab(url) {
@@ -280,6 +373,46 @@ async function init() {
     openTab(`${GITHUB_REPO}#readme`);
   document.getElementById("btnNewIssue").onclick = () => openTab(GITHUB_NEW_ISSUE);
   document.getElementById("btnContribute").onclick = () => openTab(GITHUB_CONTRIBUTING);
+
+  // Hub config events
+  document.getElementById("btnSettings").onclick = toggleHubConfigPanel;
+
+  document.getElementById("btnSaveHub").onclick = async () => {
+    const btn = document.getElementById("btnSaveHub");
+    const input = document.getElementById("hubInput");
+    const baseUrl = input.value.trim();
+
+    try {
+      btn.disabled = true;
+      btn.textContent = "保存中…";
+      await saveHubConfig(baseUrl);
+      btn.textContent = "已保存";
+      setTimeout(() => {
+        btn.textContent = "保存配置";
+        btn.disabled = false;
+      }, 1200);
+      // 更新显示并刷新页面
+      await updateHubInfo();
+      document.getElementById("hubConfigPanel").hidden = true;
+      setTimeout(() => init(), 500);
+    } catch (err) {
+      alert(err.message);
+      btn.textContent = "保存配置";
+      btn.disabled = false;
+    }
+  };
+
+  document.getElementById("btnRestoreHub").onclick = async () => {
+    if (confirm("确定要恢复默认 Hub 地址吗？")) {
+      await restoreDefaultHub();
+      document.getElementById("hubConfigPanel").hidden = true;
+      await updateHubInfo();
+      setTimeout(() => init(), 500);
+    }
+  };
+
+  // 更新 Hub 信息显示
+  await updateHubInfo();
 
   // Refresh registry button
   const linkRefresh = document.getElementById("linkRefresh");

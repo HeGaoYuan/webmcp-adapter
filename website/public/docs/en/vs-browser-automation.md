@@ -57,5 +57,5 @@ The two approaches are not mutually exclusive. You can configure Claude Desktop 
 ## Related
 
 - [Architecture](/docs/architecture) — internal component diagram
-- [Adapter System](/docs/adapter-system) — how adapters are loaded and sandboxed
+- [Adapter](/docs/adapter) — how adapters are loaded and sandboxed
 - [Writing an Adapter](/docs/writing-an-adapter) — contribute an adapter for a new site

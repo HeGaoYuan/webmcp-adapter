@@ -57,6 +57,167 @@
     .badge-none    { background: #f9fafb; color: #6b7280; }
     .badge-none .dot { background: #d1d5db; }
 
+    /* ── Hub Info ─────────────────────────────────────────── */
+    .hub-info {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 8px 14px;
+      background: #fafafa;
+      border-bottom: 1px solid #f0f0f0;
+      font-size: 11px;
+    }
+    .hub-label {
+      color: #6b7280;
+      font-weight: 500;
+    }
+    .hub-url {
+      flex: 1;
+      color: #374151;
+      font-family: "SF Mono", "JetBrains Mono", "Fira Code", monospace;
+      font-size: 10.5px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .hub-url.custom {
+      color: #c2410c;
+    }
+    .btn-settings {
+      flex-shrink: 0;
+      width: 20px;
+      height: 20px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: #f3f4f6;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 12px;
+      transition: background 0.15s;
+    }
+    .btn-settings:hover {
+      background: #e5e7eb;
+    }
+
+    /* ── Hub Config Panel ──────────────────────────────────── */
+    .hub-config-panel {
+      border-bottom: 1px solid #f0f0f0;
+      background: #fff7ed;
+    }
+    .hub-config-panel[hidden] {
+      display: none;
+    }
+    .hub-config-inner {
+      padding: 12px 14px;
+    }
+    .hub-warning {
+      display: flex;
+      align-items: flex-start;
+      gap: 6px;
+      font-size: 11px;
+      color: #c2410c;
+      background: #fef3c7;
+      border: 1px solid #fde68a;
+      border-radius: 6px;
+      padding: 8px 10px;
+      margin-bottom: 10px;
+    }
+    .hub-warning-icon {
+      flex-shrink: 0;
+      font-size: 14px;
+    }
+    .hub-warning-text {
+      flex: 1;
+      line-height: 1.4;
+    }
+    .hub-form-group {
+      margin-bottom: 10px;
+    }
+    .hub-form-label {
+      display: block;
+      font-size: 11px;
+      font-weight: 600;
+      color: #374151;
+      margin-bottom: 4px;
+    }
+    .hub-input {
+      width: 100%;
+      padding: 6px 8px;
+      background: white;
+      border: 1px solid #d1d5db;
+      border-radius: 4px;
+      font-size: 11px;
+      font-family: "SF Mono", "JetBrains Mono", "Fira Code", monospace;
+    }
+    .hub-input:focus {
+      outline: none;
+      border-color: #3b82f6;
+    }
+    .hub-input::placeholder {
+      color: #9ca3af;
+    }
+    .hub-config-actions {
+      display: flex;
+      gap: 8px;
+    }
+    .btn-restore {
+      flex: 1;
+      padding: 6px 12px;
+      background: #eff6ff;
+      border: 1px solid #bfdbfe;
+      border-radius: 4px;
+      font-size: 11px;
+      font-weight: 600;
+      color: #1d4ed8;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+    .btn-restore:hover {
+      background: #dbeafe;
+    }
+    .btn-save {
+      flex: 1;
+      padding: 6px 12px;
+      background: #e5e7eb;
+      border: 1px solid #d1d5db;
+      border-radius: 4px;
+      font-size: 11px;
+      font-weight: 600;
+      color: #374151;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+    .btn-save:hover {
+      background: #d1d5db;
+    }
+    .btn-save:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+    .hub-last-modified {
+      font-size: 10px;
+      color: #9ca3af;
+      margin-top: 8px;
+    }
+    .hub-examples {
+      font-size: 10px;
+      color: #6b7280;
+      margin-top: 10px;
+      line-height: 1.5;
+    }
+    .hub-examples code {
+      display: block;
+      padding: 2px 6px;
+      background: #f3f4f6;
+      border-radius: 3px;
+      font-family: "SF Mono", "JetBrains Mono", "Fira Code", monospace;
+      font-size: 9.5px;
+      color: #4b5563;
+      margin-top: 4px;
+    }
+
     /* ── Main ─────────────────────────────────────────────── */
     .main { padding: 14px; }
 
@@ -452,6 +613,40 @@
       <span class="dot"></span>
       <span id="headerBadgeText"></span>
     </span>
+  </div>
+
+  <!-- Hub Info -->
+  <div class="hub-info">
+    <span class="hub-label">Hub:</span>
+    <span class="hub-url" id="hubUrl">webmcphub.dev</span>
+    <button class="btn-settings" id="btnSettings" title="Hub 设置">⚙️</button>
+  </div>
+
+  <!-- Hub Config Panel (collapsed by default) -->
+  <div class="hub-config-panel" id="hubConfigPanel" hidden>
+    <div class="hub-config-inner">
+      <div class="hub-warning">
+        <span class="hub-warning-icon">⚠️</span>
+        <div class="hub-warning-text">
+          <strong>安全警告：</strong>自定义 Hub 存在风险，仅修改为你信任的地址。恶意 Hub 可能注入有害适配器。
+        </div>
+      </div>
+      <div class="hub-form-group">
+        <label class="hub-form-label">Hub 地址</label>
+        <input type="text" class="hub-input" id="hubInput" placeholder="https://webmcphub.dev" />
+      </div>
+      <div class="hub-examples">
+        支持的地址格式：
+        <code>https://webmcphub.dev</code>
+        <code>https://github.com/HeGaoYuan/webmcp-adapter</code>
+        <code>https://gitlab.company.com/user/repo</code>
+      </div>
+      <div class="hub-config-actions">
+        <button class="btn-restore" id="btnRestoreHub">恢复默认</button>
+        <button class="btn-save" id="btnSaveHub">保存配置</button>
+      </div>
+      <div class="hub-last-modified" id="hubLastModified"></div>
+    </div>
   </div>
 
   <!-- Main content -->

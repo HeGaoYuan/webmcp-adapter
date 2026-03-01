@@ -1,18 +1,19 @@
-const REPO = 'HeGaoYuan/webmcp-adapter'
+// Hub URL 配置：前端网站使用相对路径访问本地 hub 文件夹
+// 部署时 hub 文件夹会被放在网站根目录下的 /hub/ 路径
+const RAW = '/hub'
 const BRANCH = 'main'
-const RAW = `https://raw.githubusercontent.com/${REPO}/${BRANCH}`
-const GITHUB = `https://github.com/${REPO}`
+const GITHUB = 'https://github.com/HeGaoYuan/webmcp-adapter'
 
 export const GITHUB_REPO = GITHUB
 
 export async function fetchRegistry() {
-  const res = await fetch(`${RAW}/hub/registry.json`)
+  const res = await fetch(`${RAW}/registry.json`)
   if (!res.ok) throw new Error('Failed to fetch registry')
   return res.json()
 }
 
 export async function fetchAdapterMeta(id) {
-  const res = await fetch(`${RAW}/hub/adapters/${id}/meta.json`)
+  const res = await fetch(`${RAW}/adapters/${id}/meta.json`)
   if (!res.ok) throw new Error(`Failed to fetch meta for ${id}`)
   return res.json()
 }
@@ -20,10 +21,10 @@ export async function fetchAdapterMeta(id) {
 export async function fetchAdapterReadme(id, lang = 'en') {
   // For non-English languages, try README.{lang}.md first, then fall back to README.md
   if (lang !== 'en') {
-    const localized = await fetch(`${RAW}/hub/adapters/${id}/README.${lang}.md`)
+    const localized = await fetch(`${RAW}/adapters/${id}/README.${lang}.md`)
     if (localized.ok) return localized.text()
   }
-  const res = await fetch(`${RAW}/hub/adapters/${id}/README.md`)
+  const res = await fetch(`${RAW}/adapters/${id}/README.md`)
   if (!res.ok) return null
   return res.text()
 }
