@@ -1,16 +1,53 @@
-# React + Vite
+# WebMCP Website
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+WebMCP Adapter documentation website built with React + Vite.
 
-Currently, two official plugins are available:
+## Development
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+```bash
+npm install      # Install dependencies
+npm run dev      # Start development server (http://localhost:5173)
+npm run lint     # Run ESLint
+```
 
-## React Compiler
+## Build
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+```bash
+npm run build    # Build for production (outputs to dist/)
+npm run preview  # Preview production build locally
+```
 
-## Expanding the ESLint configuration
+## Deployment to Nginx
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+1. Build the project:
+```bash
+npm run build
+```
+
+2. Copy `dist/` folder to your Nginx directory:
+```bash
+cp -r dist/* /path/to/nginx/html/
+```
+
+3. Configure Nginx to support client-side routing:
+```nginx
+location / {
+    root /path/to/nginx/html;
+    index index.html;
+    try_files $uri $uri/ /index.html;
+}
+```
+
+4. Reload Nginx:
+```bash
+sudo nginx -t
+sudo systemctl reload nginx
+```
+
+## Tech Stack
+
+- React 19
+- Vite
+- React Router (client-side routing)
+- Tailwind CSS
+- React Markdown
