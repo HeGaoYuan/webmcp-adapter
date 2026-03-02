@@ -177,6 +177,93 @@ async function handleNativeMessage(msg) {
     } catch (err) {
       sendToNative({ type: "call_tool_error", id: msg.id, error: err.message });
     }
+  } else if (msg.type === "capture_screenshot") {
+    try {
+      // 获取当前活动的tab
+      const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+      if (!tab) {
+        throw new Error("未找到活动的标签页");
+      }
+
+      // 使用chrome.tabs.captureVisibleTab截图
+      const dataUrl = await chrome.tabs.captureVisibleTab(tab.windowId, {
+        format: "png"
+      });
+
+      // 如果需要全页截图，需要通过content script滚动并拼接
+      if (msg.fullPage) {
+        // 发送消息给content script获取页面尺寸
+        const pageInfo = await chrome.tabs.sendMessage(tab.id, { type: "get_page_dimensions" });
+
+        if (pageInfo && pageInfo.scrollHeight > pageInfo.viewportHeight) {
+          // 需要滚动截图并拼接
+          const screenshots = [];
+          const viewportHeight = pageInfo.viewportHeight;
+          const totalHeight = pageInfo.scrollHeight;
+          let currentScroll = 0;
+
+          while (currentScroll < totalHeight) {
+            // 滚动到指定位置
+            await chrome.tabs.sendMessage(tab.id, {
+              type: "scroll_to",
+              y: currentScroll
+            });
+
+            // 等待滚动完成
+            await new Promise(resolve => setTimeout(resolve, 300));
+
+            // 截图
+            const screenshot = await chrome.tabs.captureVisibleTab(tab.windowId, {
+              format: "png"
+            });
+            screenshots.push(screenshot);
+
+            currentScroll += viewportHeight;
+          }
+
+          // 恢复滚动位置
+          await chrome.tabs.sendMessage(tab.id, { type: "scroll_to", y: 0 });
+
+          // 返回第一张截图（完整拼接需要在native端用canvas处理）
+          // 这里简化处理，只返回第一张
+          sendToNative({
+            type: "call_tool_result",
+            id: msg.id,
+            result: {
+              data: dataUrl.split(',')[1], // 移除data:image/png;base64,前缀
+              width: pageInfo.viewportWidth,
+              height: totalHeight,
+              fullPage: true,
+              note: "全页截图功能需要进一步优化拼接逻辑"
+            }
+          });
+        } else {
+          // 页面高度小于视口，直接返回
+          sendToNative({
+            type: "call_tool_result",
+            id: msg.id,
+            result: {
+              data: dataUrl.split(',')[1],
+              width: pageInfo.viewportWidth,
+              height: pageInfo.viewportHeight,
+              fullPage: false
+            }
+          });
+        }
+      } else {
+        // 只截取可见区域
+        sendToNative({
+          type: "call_tool_result",
+          id: msg.id,
+          result: {
+            data: dataUrl.split(',')[1], // 移除data:image/png;base64,前缀
+            fullPage: false
+          }
+        });
+      }
+    } catch (err) {
+      sendToNative({ type: "call_tool_error", id: msg.id, error: err.message });
+    }
   } else if (msg.type === "reload_extension") {
     console.log("[WebMCP] Reloading extension by request from native host...");
     chrome.runtime.reload();

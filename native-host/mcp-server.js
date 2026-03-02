@@ -72,6 +72,20 @@ export class McpServer {
             },
             required: ["url"]
           }
+        },
+        {
+          name: "capture_screenshot",
+          description: "对当前浏览器标签页进行截图，返回base64编码的PNG图片数据。",
+          inputSchema: {
+            type: "object",
+            properties: {
+              fullPage: {
+                type: "boolean",
+                description: "是否截取整个页面（包括滚动区域），默认false只截取可见区域"
+              }
+            },
+            required: []
+          }
         }
       ];
 
@@ -84,7 +98,7 @@ export class McpServer {
       const allTools = [
         ...systemTools,
         ...Array.from(uniqueTools.values()).map(tool => ({
-          name: tool.name,  // 不添加tabId后缀
+          name: tool.name,  // 保持原始工具名（带点号）
           description: tool.description,
           inputSchema: tool.parameters ?? { type: "object", properties: {} },
         }))
@@ -127,9 +141,45 @@ export class McpServer {
         }
       }
 
+      if (toolName === "capture_screenshot") {
+        try {
+          this._log(`  Executing system tool: capture_screenshot`);
+          const result = await this.bridge.captureScreenshot(args.fullPage ?? false);
+
+          // 清理 base64 数据：移除所有空白字符（换行、空格等）
+          const cleanBase64 = result.data.replace(/\s/g, '');
+
+          this._log(`→ Response: Success (screenshot captured, original length: ${result.data?.length || 0}, cleaned length: ${cleanBase64.length})`);
+
+          // 验证 base64 字符串
+          const base64Regex = /^[A-Za-z0-9+/]*={0,2}$/;
+          if (!base64Regex.test(cleanBase64)) {
+            this._log(`  WARNING: Base64 validation failed! First 100 chars: ${cleanBase64.substring(0, 100)}`);
+            this._log(`  Last 100 chars: ${cleanBase64.substring(cleanBase64.length - 100)}`);
+          }
+
+          // MCP 协议的图片内容直接使用 base64 字符串，不需要 data: URL 前缀
+          return {
+            content: [
+              {
+                type: "image",
+                data: cleanBase64,
+                mimeType: "image/png"
+              }
+            ],
+          };
+        } catch (err) {
+          this._log(`→ Response: Error - ${err.message}`);
+          return {
+            content: [{ type: "text", text: `Error: ${err.message}` }],
+            isError: true,
+          };
+        }
+      }
+
       // 处理网站工具：由扩展自动查找匹配域名的tab
       try {
-        // 调用工具（扩展会自动查找匹配域名的tab）
+        // 直接使用工具名调用（保持点号格式）
         this._log(`  Calling tool "${toolName}"...`);
         const result = await this.bridge.callTool(toolName, args ?? {});
 

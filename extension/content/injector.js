@@ -80,6 +80,24 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
     return true;
   }
 
+  // 获取页面尺寸（用于全页截图）
+  if (msg.type === "get_page_dimensions") {
+    sendResponse({
+      viewportWidth: window.innerWidth,
+      viewportHeight: window.innerHeight,
+      scrollHeight: document.documentElement.scrollHeight,
+      scrollWidth: document.documentElement.scrollWidth
+    });
+    return true;
+  }
+
+  // 滚动到指定位置（用于全页截图）
+  if (msg.type === "scroll_to") {
+    window.scrollTo(0, msg.y);
+    sendResponse({ ok: true });
+    return true;
+  }
+
   if (msg.type !== "call_tool") return;
 
   const { toolName, args } = msg;

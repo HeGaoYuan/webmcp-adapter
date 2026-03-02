@@ -497,6 +497,7 @@ class WebSocketClient {
   getActiveTabId()          { return this._request({ type: "get_active_tab" }); }
   callTool(name, a)         { return this._request({ type: "call_tool", toolName: name, args: a }); }
   openBrowser(url)          { return this._request({ type: "open_browser", url }); }
+  captureScreenshot(fullPage = false) { return this._request({ type: "capture_screenshot", fullPage }, 30000); }
 
   on(e, fn)   { (this._listeners.get(e) ?? (this._listeners.set(e, []), this._listeners.get(e))).push(fn); }
   _emit(e)    { this._listeners.get(e)?.forEach(fn => fn()); }

@@ -76,7 +76,7 @@ export class WebSocketBridge extends EventEmitter {
             if (msg.type === 'tools_updated' || msg.type === 'call_tool_result' || msg.type === 'call_tool_error' || msg.type === 'get_active_tab_result') {
               // 来自Chrome扩展的消息
               this._handleExtensionMessage(msg);
-            } else if (msg.type === 'call_tool' || msg.type === 'get_active_tab' || msg.type === 'open_browser' || msg.type === 'reload_extension' || msg.type === 'refresh_registry') {
+            } else if (msg.type === 'call_tool' || msg.type === 'get_active_tab' || msg.type === 'open_browser' || msg.type === 'capture_screenshot' || msg.type === 'reload_extension' || msg.type === 'refresh_registry') {
               // 来自MCP进程或CLI的请求，需要转发给Chrome扩展或处理系统命令
               this._handleMcpRequest(msg);
             } else {
@@ -164,22 +164,27 @@ export class WebSocketBridge extends EventEmitter {
       return;
     }
 
-    // 响应待处理请求（来自MCP进程的call_tool请求）
+    // 响应待处理请求（来自bridge自己的_request调用）
     const pending = this._pendingRequests.get(msg.id);
-    if (!pending) {
-      process.stderr.write(`[Bridge] No pending request for id ${msg.id}\n`);
+    if (pending) {
+      this._pendingRequests.delete(msg.id);
+
+      if (msg.type === "call_tool_result") {
+        pending.resolve(msg.result);
+      } else if (msg.type === "call_tool_error") {
+        pending.reject(new Error(msg.error));
+      } else if (msg.type === "list_tools_result") {
+        pending.resolve(msg.tools);
+      } else if (msg.type === "get_active_tab_result") {
+        pending.resolve(msg.tabId);
+      }
       return;
     }
-    this._pendingRequests.delete(msg.id);
 
-    if (msg.type === "call_tool_result") {
-      pending.resolve(msg.result);
-    } else if (msg.type === "call_tool_error") {
-      pending.reject(new Error(msg.error));
-    } else if (msg.type === "list_tools_result") {
-      pending.resolve(msg.tools);
-    } else if (msg.type === "get_active_tab_result") {
-      pending.resolve(msg.tabId);
+    // 如果不是bridge自己的请求，广播给所有客户端（来自MCP客户端的转发请求）
+    if (msg.type === "call_tool_result" || msg.type === "call_tool_error" || msg.type === "get_active_tab_result") {
+      process.stderr.write(`[Bridge] Broadcasting response for id ${msg.id} to all clients\n`);
+      this._broadcast(msg);
     }
   }
   
@@ -215,6 +220,10 @@ export class WebSocketBridge extends EventEmitter {
       } catch (err) {
         this._broadcast({ type: 'call_tool_error', id: msg.id, error: err.message });
       }
+    } else if (msg.type === 'capture_screenshot') {
+      // 直接转发给Chrome扩展
+      process.stderr.write('[Bridge] Forwarding capture_screenshot to Chrome extension\n');
+      this._send(msg);
     } else if (msg.type === 'reload_extension') {
       process.stderr.write('[Bridge] Forwarding reload_extension to Chrome extension\n');
       this._send({ type: 'reload_extension' });
@@ -285,6 +294,26 @@ export class WebSocketBridge extends EventEmitter {
    */
   isExtensionConnected() {
     return this._extensionWs && this._extensionWs.readyState === 1;
+  }
+
+  /**
+   * 截取当前浏览器标签页的屏幕截图
+   * @param {boolean} fullPage - 是否截取整个页面（包括滚动区域）
+   * @returns {Promise<{data: string, width: number, height: number}>} base64编码的PNG图片数据
+   */
+  async captureScreenshot(fullPage = false) {
+    if (!this.isExtensionConnected()) {
+      throw new Error("Chrome扩展未连接，无法截图");
+    }
+
+    try {
+      process.stderr.write(`[Bridge] Capturing screenshot (fullPage: ${fullPage})\n`);
+      const result = await this._request({ type: "capture_screenshot", fullPage }, 30000);
+      process.stderr.write(`[Bridge] Screenshot captured successfully\n`);
+      return result;
+    } catch (err) {
+      throw new Error(`截图失败: ${err.message}`);
+    }
   }
 
   /**
