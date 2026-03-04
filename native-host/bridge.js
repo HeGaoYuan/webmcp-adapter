@@ -363,12 +363,34 @@ export class WebSocketBridge extends EventEmitter {
         }
         if (!opened) throw new Error("找不到可用的 Chrome/Chromium 可执行文件");
       }
-      return {
-        success: true,
-        method: "system_command",
-        message: `已使用系统命令打开Chrome: ${url}`,
-        note: "请等待几秒让页面加载完成"
-      };
+
+      // 等待 Chrome 扩展连接（最多等待 10 秒）
+      process.stderr.write(`[Bridge] Waiting for Chrome extension to connect...\n`);
+      const startTime = Date.now();
+      const timeout = 10000; // 10 秒超时
+
+      while (!this.isExtensionConnected() && (Date.now() - startTime) < timeout) {
+        await new Promise(resolve => setTimeout(resolve, 500)); // 每 500ms 检查一次
+      }
+
+      if (this.isExtensionConnected()) {
+        process.stderr.write(`[Bridge] Chrome extension connected after ${Date.now() - startTime}ms\n`);
+        return {
+          success: true,
+          method: "system_command",
+          message: `已使用系统命令打开Chrome: ${url}`,
+          extensionConnected: true
+        };
+      } else {
+        process.stderr.write(`[Bridge] Chrome extension did not connect within ${timeout}ms\n`);
+        return {
+          success: true,
+          method: "system_command",
+          message: `已使用系统命令打开Chrome: ${url}`,
+          extensionConnected: false,
+          note: "Chrome扩展未在10秒内连接，请稍后再试截图功能"
+        };
+      }
     } catch (err) {
       throw new Error(`无法打开Chrome: ${err.message}`);
     }

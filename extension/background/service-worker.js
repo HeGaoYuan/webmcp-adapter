@@ -21,6 +21,104 @@ const DEFAULT_HUB_URL = "https://webmcphub.dev";
 // registry 在 chrome.storage.local 中的缓存有效期（1小时）
 const REGISTRY_TTL_MS = 60 * 60 * 1000;
 
+// 截图配置
+// 根据 Claude Code 限制：约 1MB
+// 策略：截取页面中心区域，保持原始清晰度，不压缩
+const SCREENSHOT_CONFIG = {
+  maxSizeBytes: 800 * 1024,  // 最大 800KB（留有余量）
+  cropStrategy: 'center',     // 裁剪策略：center（中心区域）
+  maxWidth: 1200,             // 最大宽度
+  maxHeight: 800,             // 最大高度
+};
+
+// ─── 图片裁剪工具 ────────────────────────────────────────────────────────────
+
+/**
+ * 裁剪图片到指定尺寸，保持原始清晰度
+ * @param {string} dataUrl - 原始图片的 data URL
+ * @returns {Promise<{data: string, originalSize: number, croppedSize: number, cropped: boolean}>}
+ */
+async function cropImage(dataUrl) {
+  // 将 data URL 转换为 Blob
+  const response = await fetch(dataUrl);
+  const blob = await response.blob();
+  const originalSize = blob.size;
+
+  // 使用 createImageBitmap 创建图片
+  const imageBitmap = await createImageBitmap(blob);
+  const originalWidth = imageBitmap.width;
+  const originalHeight = imageBitmap.height;
+
+  // 计算裁剪区域（中心区域）
+  const targetWidth = Math.min(originalWidth, SCREENSHOT_CONFIG.maxWidth);
+  const targetHeight = Math.min(originalHeight, SCREENSHOT_CONFIG.maxHeight);
+
+  // 如果图片已经足够小，直接返回
+  if (originalWidth <= targetWidth && originalHeight <= targetHeight && originalSize <= SCREENSHOT_CONFIG.maxSizeBytes) {
+    const arrayBuffer = await blob.arrayBuffer();
+    const bytes = new Uint8Array(arrayBuffer);
+    let binary = '';
+    for (let i = 0; i < bytes.length; i++) {
+      binary += String.fromCharCode(bytes[i]);
+    }
+    const base64Data = btoa(binary);
+
+    return {
+      data: base64Data,
+      originalSize,
+      croppedSize: originalSize,
+      cropped: false,
+      width: originalWidth,
+      height: originalHeight
+    };
+  }
+
+  // 计算裁剪起始位置（居中）
+  const cropX = Math.max(0, Math.floor((originalWidth - targetWidth) / 2));
+  const cropY = Math.max(0, Math.floor((originalHeight - targetHeight) / 2));
+
+  // 创建画布并裁剪
+  const canvas = new OffscreenCanvas(targetWidth, targetHeight);
+  const ctx = canvas.getContext('2d');
+
+  // 从原图的中心区域裁剪
+  ctx.drawImage(
+    imageBitmap,
+    cropX, cropY, targetWidth, targetHeight,  // 源区域
+    0, 0, targetWidth, targetHeight            // 目标区域
+  );
+
+  // 转换为 JPEG（高质量）
+  const croppedBlob = await canvas.convertToBlob({
+    type: 'image/jpeg',
+    quality: 0.92  // 高质量，不压缩
+  });
+
+  // 转换为 base64
+  const arrayBuffer = await croppedBlob.arrayBuffer();
+  const bytes = new Uint8Array(arrayBuffer);
+  let binary = '';
+  for (let i = 0; i < bytes.length; i++) {
+    binary += String.fromCharCode(bytes[i]);
+  }
+  const base64Data = btoa(binary);
+
+  return {
+    data: base64Data,
+    originalSize,
+    croppedSize: croppedBlob.size,
+    cropped: true,
+    width: targetWidth,
+    height: targetHeight,
+    cropArea: {
+      x: cropX,
+      y: cropY,
+      width: targetWidth,
+      height: targetHeight
+    }
+  };
+}
+
 // ─── Hub 配置读取 ────────────────────────────────────────────────────────────
 
 /**
@@ -185,9 +283,10 @@ async function handleNativeMessage(msg) {
         throw new Error("未找到活动的标签页");
       }
 
-      // 使用chrome.tabs.captureVisibleTab截图
+      // 使用chrome.tabs.captureVisibleTab截图（使用JPEG格式以获得更好的压缩）
       const dataUrl = await chrome.tabs.captureVisibleTab(tab.windowId, {
-        format: "png"
+        format: "jpeg",
+        quality: 80  // 初始质量设为80
       });
 
       // 如果需要全页截图，需要通过content script滚动并拼接
@@ -214,7 +313,8 @@ async function handleNativeMessage(msg) {
 
             // 截图
             const screenshot = await chrome.tabs.captureVisibleTab(tab.windowId, {
-              format: "png"
+              format: "jpeg",
+              quality: 80
             });
             screenshots.push(screenshot);
 
@@ -224,40 +324,65 @@ async function handleNativeMessage(msg) {
           // 恢复滚动位置
           await chrome.tabs.sendMessage(tab.id, { type: "scroll_to", y: 0 });
 
-          // 返回第一张截图（完整拼接需要在native端用canvas处理）
-          // 这里简化处理，只返回第一张
+          // 裁剪第一张截图（中心区域）
+          const cropped = await cropImage(dataUrl);
+
           sendToNative({
             type: "call_tool_result",
             id: msg.id,
             result: {
-              data: dataUrl.split(',')[1], // 移除data:image/png;base64,前缀
-              width: pageInfo.viewportWidth,
-              height: totalHeight,
+              data: cropped.data,
+              width: cropped.width,
+              height: cropped.height,
               fullPage: true,
+              crop: {
+                cropped: cropped.cropped,
+                originalSize: cropped.originalSize,
+                croppedSize: cropped.croppedSize,
+                cropArea: cropped.cropArea
+              },
               note: "全页截图功能需要进一步优化拼接逻辑"
             }
           });
         } else {
-          // 页面高度小于视口，直接返回
+          // 页面高度小于视口，裁剪后返回
+          const cropped = await cropImage(dataUrl);
+
           sendToNative({
             type: "call_tool_result",
             id: msg.id,
             result: {
-              data: dataUrl.split(',')[1],
-              width: pageInfo.viewportWidth,
-              height: pageInfo.viewportHeight,
-              fullPage: false
+              data: cropped.data,
+              width: cropped.width,
+              height: cropped.height,
+              fullPage: false,
+              crop: {
+                cropped: cropped.cropped,
+                originalSize: cropped.originalSize,
+                croppedSize: cropped.croppedSize,
+                cropArea: cropped.cropArea
+              }
             }
           });
         }
       } else {
-        // 只截取可见区域
+        // 只截取可见区域，裁剪后返回
+        const cropped = await cropImage(dataUrl);
+
         sendToNative({
           type: "call_tool_result",
           id: msg.id,
           result: {
-            data: dataUrl.split(',')[1], // 移除data:image/png;base64,前缀
-            fullPage: false
+            data: cropped.data,
+            width: cropped.width,
+            height: cropped.height,
+            fullPage: false,
+            crop: {
+              cropped: cropped.cropped,
+              originalSize: cropped.originalSize,
+              croppedSize: cropped.croppedSize,
+              cropArea: cropped.cropArea
+            }
           }
         });
       }

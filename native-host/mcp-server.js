@@ -75,7 +75,7 @@ export class McpServer {
         },
         {
           name: "capture_screenshot",
-          description: "对当前浏览器标签页进行截图，返回base64编码的PNG图片数据。",
+          description: "对当前浏览器标签页进行截图，返回高清JPEG图片（最大1200x800，<800KB）。截取页面中心区域，保持原始清晰度，不压缩画质。符合Claude Code的图片大小限制。",
           inputSchema: {
             type: "object",
             properties: {
@@ -158,13 +158,20 @@ export class McpServer {
             this._log(`  Last 100 chars: ${cleanBase64.substring(cleanBase64.length - 100)}`);
           }
 
-          // MCP 协议的图片内容直接使用 base64 字符串，不需要 data: URL 前缀
+          // 计算图片大小（KB）
+          const sizeKB = Math.round(cleanBase64.length * 0.75 / 1024);
+
+          // MCP 协议：同时返回文本说明和图片数据
           return {
             content: [
               {
+                type: "text",
+                text: `Screenshot captured successfully (${sizeKB}KB JPEG, ${args.fullPage ? 'full page' : 'visible area'})`
+              },
+              {
                 type: "image",
                 data: cleanBase64,
-                mimeType: "image/png"
+                mimeType: "image/jpeg"
               }
             ],
           };
