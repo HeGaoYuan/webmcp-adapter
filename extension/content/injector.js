@@ -104,7 +104,25 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
   const handler = handlers.get(toolName);
 
   if (!handler) {
-    sendResponse({ error: `Tool "${toolName}" not found in this page` });
+    // Tool not found — adapter may still be injecting after page navigation.
+    // Poll for up to 8 seconds before giving up.
+    const deadline = Date.now() + 8000;
+    const poll = () => {
+      const h = handlers.get(toolName);
+      if (h) {
+        Promise.resolve()
+          .then(() => h(args))
+          .then(result => { sendResponse({ result: JSON.parse(JSON.stringify(result ?? null)) }); })
+          .catch(err => { sendResponse({ error: err.message ?? String(err) }); });
+        return;
+      }
+      if (Date.now() >= deadline) {
+        sendResponse({ error: `Tool "${toolName}" not found in this page` });
+        return;
+      }
+      setTimeout(poll, 500);
+    };
+    poll();
     return true;
   }
 

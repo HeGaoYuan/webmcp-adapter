@@ -43,6 +43,8 @@ When you open a page in Chrome:
 4. If no local adapter is installed but the Hub has a match, the extension shows an orange `!` badge — run `webmcp adapter install <id> --reload` to install it
 5. The injected adapter calls `window.__webmcpRegister()`, and `injector.js` forwards the tool definitions to the background service worker
 
+**Subdomain matching**: When registry lookup fails, the extension searches local adapters by trying parent domains (e.g., `order.jd.com` → `jd.com`, `www.jd.com`).
+
 ## Isolated world sandbox
 
 Adapters run inside Chrome's **isolated world** — a sandboxed JavaScript environment that:

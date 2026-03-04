@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updated_at": "2026-02-24T08:15:35Z",
+  "updated_at": "2026-03-04T00:00:00Z",
   "adapters": [
     {
       "id": "mail.google.com",
@@ -31,6 +31,22 @@
         "zh": {
           "name": "163邮箱",
           "description": "网易163邮箱：读取邮件列表、搜索邮件、查看邮件详情、下载附件"
+        }
+      }
+    },
+    {
+      "id": "www.jd.com",
+      "name": "JD.com",
+      "description": "JD.com: navigate homepage, view cart, view orders, buy products, pay",
+      "author": "webmcp-team",
+      "match": ["jd.com", "pc-settlement-lite-pro.pf.jd.com"],
+      "version": "2026-03-05T00:00:00Z",
+      "verified_on": "2026-03-05",
+      "homepage": "https://github.com/HeGaoYuan/webmcp-adapter/tree/main/hub/adapters/www.jd.com",
+      "i18n": {
+        "zh": {
+          "name": "京东",
+          "description": "京东：导航主页、查看购物车、查看订单、购买商品、支付"
         }
       }
     }

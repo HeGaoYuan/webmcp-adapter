@@ -23,10 +23,9 @@ const REGISTRY_TTL_MS = 60 * 60 * 1000;
 
 // 截图配置
 // 根据 Claude Code 限制：约 1MB
-// 策略：截取页面中心区域，保持原始清晰度，不压缩
+// 策略：等比缩放到最大尺寸内，保留完整内容
 const SCREENSHOT_CONFIG = {
   maxSizeBytes: 800 * 1024,  // 最大 800KB（留有余量）
-  cropStrategy: 'center',     // 裁剪策略：center（中心区域）
   maxWidth: 1200,             // 最大宽度
   maxHeight: 800,             // 最大高度
 };
@@ -34,7 +33,7 @@ const SCREENSHOT_CONFIG = {
 // ─── 图片裁剪工具 ────────────────────────────────────────────────────────────
 
 /**
- * 裁剪图片到指定尺寸，保持原始清晰度
+ * 等比缩放图片到最大尺寸内，保留完整内容
  * @param {string} dataUrl - 原始图片的 data URL
  * @returns {Promise<{data: string, originalSize: number, croppedSize: number, cropped: boolean}>}
  */
@@ -49,22 +48,17 @@ async function cropImage(dataUrl) {
   const originalWidth = imageBitmap.width;
   const originalHeight = imageBitmap.height;
 
-  // 计算裁剪区域（中心区域）
-  const targetWidth = Math.min(originalWidth, SCREENSHOT_CONFIG.maxWidth);
-  const targetHeight = Math.min(originalHeight, SCREENSHOT_CONFIG.maxHeight);
-
   // 如果图片已经足够小，直接返回
-  if (originalWidth <= targetWidth && originalHeight <= targetHeight && originalSize <= SCREENSHOT_CONFIG.maxSizeBytes) {
+  if (originalWidth <= SCREENSHOT_CONFIG.maxWidth && originalHeight <= SCREENSHOT_CONFIG.maxHeight && originalSize <= SCREENSHOT_CONFIG.maxSizeBytes) {
     const arrayBuffer = await blob.arrayBuffer();
     const bytes = new Uint8Array(arrayBuffer);
     let binary = '';
     for (let i = 0; i < bytes.length; i++) {
       binary += String.fromCharCode(bytes[i]);
     }
-    const base64Data = btoa(binary);
 
     return {
-      data: base64Data,
+      data: btoa(binary),
       originalSize,
       croppedSize: originalSize,
       cropped: false,
@@ -73,49 +67,40 @@ async function cropImage(dataUrl) {
     };
   }
 
-  // 计算裁剪起始位置（居中）
-  const cropX = Math.max(0, Math.floor((originalWidth - targetWidth) / 2));
-  const cropY = Math.max(0, Math.floor((originalHeight - targetHeight) / 2));
+  // 等比缩放：计算缩放比例，保留完整内容
+  const scale = Math.min(
+    SCREENSHOT_CONFIG.maxWidth / originalWidth,
+    SCREENSHOT_CONFIG.maxHeight / originalHeight
+  );
+  const targetWidth = Math.round(originalWidth * scale);
+  const targetHeight = Math.round(originalHeight * scale);
 
-  // 创建画布并裁剪
+  // 创建画布并缩放绘制完整图片
   const canvas = new OffscreenCanvas(targetWidth, targetHeight);
   const ctx = canvas.getContext('2d');
-
-  // 从原图的中心区域裁剪
-  ctx.drawImage(
-    imageBitmap,
-    cropX, cropY, targetWidth, targetHeight,  // 源区域
-    0, 0, targetWidth, targetHeight            // 目标区域
-  );
+  ctx.drawImage(imageBitmap, 0, 0, targetWidth, targetHeight);
 
   // 转换为 JPEG（高质量）
-  const croppedBlob = await canvas.convertToBlob({
+  const scaledBlob = await canvas.convertToBlob({
     type: 'image/jpeg',
-    quality: 0.92  // 高质量，不压缩
+    quality: 0.92
   });
 
   // 转换为 base64
-  const arrayBuffer = await croppedBlob.arrayBuffer();
+  const arrayBuffer = await scaledBlob.arrayBuffer();
   const bytes = new Uint8Array(arrayBuffer);
   let binary = '';
   for (let i = 0; i < bytes.length; i++) {
     binary += String.fromCharCode(bytes[i]);
   }
-  const base64Data = btoa(binary);
 
   return {
-    data: base64Data,
+    data: btoa(binary),
     originalSize,
-    croppedSize: croppedBlob.size,
+    croppedSize: scaledBlob.size,
     cropped: true,
     width: targetWidth,
-    height: targetHeight,
-    cropArea: {
-      x: cropX,
-      y: cropY,
-      width: targetWidth,
-      height: targetHeight
-    }
+    height: targetHeight
   };
 }
 
@@ -527,8 +512,24 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
         return;
       }
 
+      // 规范化域名：查找adapter的match配置，使用匹配的基础域名
+      const registry = await getCachedRegistry();
+      if (registry?.adapters) {
+        const adapterMeta = registry.adapters.find(a =>
+          a.match.some(d => domain === d || domain.endsWith(`.${d}`))
+        );
+        if (adapterMeta && adapterMeta.match.length > 0) {
+          // 使用adapter的第一个match作为规范化域名
+          const originalDomain = domain;
+          domain = adapterMeta.match[0];
+          console.log(`[WebMCP] get_tab_info: Normalized domain ${originalDomain} -> ${domain}`);
+        }
+      }
+
       // 检查该域名是否有工具
       const domainData = toolRegistry.get(domain);
+      console.log(`[WebMCP] get_tab_info: Looking for tools under domain "${domain}", found: ${domainData?.tools?.length ?? 0} tools`);
+
       if (domainData && domainData.tools.length > 0) {
         sendResponse({ state: "active", tools: domainData.tools, isConnected });
         return;
@@ -542,7 +543,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       }
 
       // Fallback: check registry by URL, then verify the file is NOT locally installed
-      const registry = await getCachedRegistry();
+      // registry already fetched above, reuse it
       if (registry?.adapters && url) {
         try {
           const hostname = new URL(url).hostname;
@@ -595,49 +596,68 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     }
 
     // 从URL提取域名
-    let domain;
+    let hostname;
     try {
-      domain = new URL(tabUrl).hostname;
+      hostname = new URL(tabUrl).hostname;
     } catch {
       console.warn(`[WebMCP] Invalid tab URL: ${tabUrl}`);
       sendResponse({ ok: false, error: "Invalid tab URL" });
       return true;
     }
 
-    // 获取该域名的现有数据
-    const domainData = toolRegistry.get(domain);
-    const oldTools = domainData?.tools ?? [];
-
-    // 检查工具列表是否真的变化了
-    const hasChanged = !domainData ||
-                       oldTools.length !== newTools.length ||
-                       !toolsAreEqual(oldTools, newTools);
-
-    if (hasChanged) {
-      // 更新或创建域名数据
-      if (!domainData) {
-        toolRegistry.set(domain, { tools: newTools, tabIds: new Set([tabId]) });
-      } else {
-        domainData.tools = newTools;
-        domainData.tabIds.add(tabId);
+    // 规范化域名：查找adapter的match配置，使用匹配的基础域名
+    // 例如：order.jd.com 应该规范化为 jd.com
+    (async () => {
+      let domain = hostname;
+      const registry = await getCachedRegistry();
+      if (registry?.adapters) {
+        const adapterMeta = registry.adapters.find(a =>
+          a.match.some(d => hostname === d || hostname.endsWith(`.${d}`))
+        );
+        if (adapterMeta && adapterMeta.match.length > 0) {
+          // 使用adapter的第一个match作为规范化域名
+          domain = adapterMeta.match[0];
+          console.log(`[WebMCP] Normalized domain: ${hostname} -> ${domain}`);
+        }
       }
 
-      // 记录tab到域名的映射
-      tabDomainMap.set(tabId, domain);
+      // 获取该域名的现有数据
+      const domainData = toolRegistry.get(domain);
+      const oldTools = domainData?.tools ?? [];
 
-      console.log(`[WebMCP] Domain ${domain} registered ${newTools.length} tools (changed), tab count: ${toolRegistry.get(domain).tabIds.size}`);
-      sendToNative({ type: "tools_updated", domain, tools: newTools, tabCount: toolRegistry.get(domain).tabIds.size });
-    } else {
-      // 工具未变化，但仍需记录tab
-      if (domainData) {
-        domainData.tabIds.add(tabId);
+      // 检查工具列表是否真的变化了
+      const hasChanged = !domainData ||
+                         oldTools.length !== newTools.length ||
+                         !toolsAreEqual(oldTools, newTools);
+
+      if (hasChanged) {
+        // 更新或创建域名数据
+        if (!domainData) {
+          toolRegistry.set(domain, { tools: newTools, tabIds: new Set([tabId]) });
+        } else {
+          domainData.tools = newTools;
+          domainData.tabIds.add(tabId);
+        }
+
+        // 记录tab到域名的映射
         tabDomainMap.set(tabId, domain);
-      }
-      console.log(`[WebMCP] Domain ${domain} tools unchanged, skipping notification, tab count: ${domainData.tabIds.size}`);
-    }
 
-    setBadgeActive(tabId, newTools.length);
-    sendResponse({ ok: true });
+        console.log(`[WebMCP] Domain ${domain} registered ${newTools.length} tools (changed), tab count: ${toolRegistry.get(domain).tabIds.size}`);
+        sendToNative({ type: "tools_updated", domain, tools: newTools, tabCount: toolRegistry.get(domain).tabIds.size });
+      } else {
+        // 工具未变化，但仍需记录tab
+        if (domainData) {
+          domainData.tabIds.add(tabId);
+          tabDomainMap.set(tabId, domain);
+        }
+        console.log(`[WebMCP] Domain ${domain} tools unchanged, skipping notification, tab count: ${domainData.tabIds.size}`);
+      }
+
+      setBadgeActive(tabId, newTools.length);
+      sendResponse({ ok: true });
+    })();
+
+    return true;
   }
 
   return true;
@@ -783,6 +803,8 @@ async function injectAdapters(tabId, url) {
   let hostname;
   try { hostname = new URL(url).hostname; } catch { return; }
 
+  console.log(`[WebMCP] injectAdapters called for tab ${tabId}, hostname: ${hostname}`);
+
   const registry = await getCachedRegistry();
   const adapters = registry?.adapters ?? [];
 
@@ -791,16 +813,51 @@ async function injectAdapters(tabId, url) {
     a.match.some(d => hostname === d || hostname.endsWith(`.${d}`))
   );
 
-  // adapter id：优先用 registry 里的 id，其次用 hostname 本身（兼容本地自定义 adapter）
-  const adapterId = adapterMeta?.id ?? hostname;
+  console.log(`[WebMCP] Found adapter meta:`, adapterMeta);
+
+  // adapter id：优先用 registry 里的 id
+  let adapterId = adapterMeta?.id;
+
+  // 如果 registry 中没有找到，尝试查找本地已安装的 adapter
+  if (!adapterId) {
+    // 尝试当前 hostname
+    if (await isAdapterFileInstalled(hostname)) {
+      adapterId = hostname;
+    } else {
+      // 尝试父域名（例如：order.jd.com -> jd.com, www.jd.com）
+      const parts = hostname.split('.');
+      for (let i = 0; i < parts.length - 1; i++) {
+        const candidateId = parts.slice(i).join('.');
+        if (await isAdapterFileInstalled(candidateId)) {
+          adapterId = candidateId;
+          break;
+        }
+        // 也尝试 www. 前缀
+        const wwwCandidateId = 'www.' + candidateId;
+        if (await isAdapterFileInstalled(wwwCandidateId)) {
+          adapterId = wwwCandidateId;
+          break;
+        }
+      }
+    }
+  }
+
+  if (!adapterId) {
+    console.log(`[WebMCP] No adapter found for hostname: ${hostname}`);
+    clearBadge(tabId);
+    return;
+  }
 
   // Guard against path traversal or unexpected characters in the adapter id
   if (!SAFE_ADAPTER_ID_RE.test(adapterId)) {
     console.warn(`[WebMCP] Unsafe adapter id "${adapterId}", skipping`);
     return;
   }
+
   // 检查本地文件是否存在
   const isInstalled = await isAdapterFileInstalled(adapterId);
+
+  console.log(`[WebMCP] Adapter "${adapterId}" installed: ${isInstalled}`);
 
   if (isInstalled) {
     // 已安装：直接注入

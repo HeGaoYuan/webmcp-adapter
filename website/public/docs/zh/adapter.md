@@ -138,6 +138,8 @@ CLI 会下载 adapter 的 `index.js` 并写入 npm 包内的 `extension/adapters
 4. 如果本地未安装但 Hub 有匹配，扩展图标显示橙色 `!` 提示——运行 `webmcp adapter install <id> --reload` 安装
 5. 注入的 adapter 使用 `window.__webmcpRegister()`，`injector.js` 将工具定义转发给后台 service worker
 
+**子域名匹配**：当注册表查找失败时，扩展会尝试父域名查找本地 adapter（如 `order.jd.com` → `jd.com`、`www.jd.com`）。
+
 ## Isolated World 沙箱
 
 Adapter 运行在 Chrome 的 **Isolated World** 中——一个沙箱化的 JavaScript 环境：

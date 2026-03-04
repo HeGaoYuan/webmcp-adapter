@@ -75,7 +75,7 @@ export class McpServer {
         },
         {
           name: "capture_screenshot",
-          description: "对当前浏览器标签页进行截图，返回高清JPEG图片（最大1200x800，<800KB）。截取页面中心区域，保持原始清晰度，不压缩画质。符合Claude Code的图片大小限制。",
+          description: "对当前浏览器标签页进行截图，返回高清JPEG图片（最大1200x800，<800KB）。等比缩放保留完整内容，不裁切，符合Claude Code的图片大小限制。",
           inputSchema: {
             type: "object",
             properties: {
