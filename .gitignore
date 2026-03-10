@@ -16,3 +16,6 @@ native-host.log
 
 # website dist zip
 dist.zip
+
+# claude
+.claude
