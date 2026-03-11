@@ -416,6 +416,148 @@ async function viewOrders() {
 }
 
 /**
+ * Parse product list from the search results page.
+ *
+ * DOM structure:
+ * - Container: ._goodsContainer_644iz_1
+ * - Each card: ._wrapper_1m8y1_3[data-sku]
+ * - Title: ._wrapper_8g5fc_1[title] or ._text_1g56m_31
+ * - Image: ._img_18s24_1[data-src] or [src]
+ * - Price: ._price_d0rf6_14 (i._yen + integer + ._decimal)
+ * - Original price: ._gray_d0rf6_61
+ * - Sales: ._goods_volume_1xkku_1 span
+ * - Shop: ._name_b6zo3_45 span
+ * - Tags: ._textTag_1qbwk_10 span
+ */
+function parseSearchResults() {
+  const products = [];
+  const cards = document.querySelectorAll('._wrapper_1m8y1_3[data-sku]');
+
+  for (const card of cards) {
+    try {
+      const sku = card.getAttribute('data-sku');
+      if (!sku) continue;
+
+      // 商品标题：优先取 ._wrapper_8g5fc_1 的 title 属性（完整无截断）
+      const imgWrapper = card.querySelector('._wrapper_8g5fc_1[title]');
+      const titleText = card.querySelector('._text_1g56m_31');
+      const title = imgWrapper?.getAttribute('title') || titleText?.textContent?.trim() || '';
+
+      // 商品图片
+      const imgEl = card.querySelector('._img_18s24_1');
+      let image = imgEl?.getAttribute('src') || imgEl?.getAttribute('data-src') || '';
+      if (image.startsWith('//')) image = 'https:' + image;
+
+      // 价格：拼接整数部分 + 小数部分
+      const priceEl = card.querySelector('._price_d0rf6_14');
+      let price = '';
+      if (priceEl) {
+        const integer = priceEl.childNodes[1]?.textContent?.trim() || '';
+        const decimal = priceEl.querySelector('._decimal_d0rf6_28')?.textContent?.trim() || '';
+        price = decimal ? `¥${integer}.${decimal}` : `¥${integer}`;
+      }
+
+      // 原价（划线价）
+      const originalPriceEl = card.querySelector('._gray_d0rf6_61');
+      const originalPrice = originalPriceEl?.textContent?.trim() || '';
+
+      // 销量
+      const salesEl = card.querySelector('._goods_volume_1xkku_1 span');
+      const sales = salesEl?.getAttribute('title') || salesEl?.textContent?.trim() || '';
+
+      // 店铺名
+      const shopEl = card.querySelector('._name_b6zo3_45 span');
+      const shop = shopEl?.textContent?.trim() || '';
+
+      // 标签（如"只换不修"、"政府补贴"等文字标签）
+      const tagEls = card.querySelectorAll('._textTag_1qbwk_10 span');
+      const tags = Array.from(tagEls).map(el => el.textContent.trim()).filter(Boolean);
+
+      // 商品链接
+      const productUrl = `https://item.jd.com/${sku}.html`;
+
+      if (title) {
+        products.push({ sku, title, price, originalPrice, image, sales, shop, tags, url: productUrl });
+      }
+    } catch (err) {
+      console.error('Failed to parse product card:', err);
+    }
+  }
+
+  return products;
+}
+
+/**
+ * Search for products on JD.com.
+ *
+ * 两阶段策略：
+ * 1. 若当前不在搜索结果页 → 直接导航到 search.jd.com，返回 navigating
+ * 2. 若已在搜索结果页 → 解析商品列表并返回
+ *
+ * @param {object} args - { keyword: string }
+ * 测试示例：await searchProducts({ keyword: '耳机' })
+ */
+async function searchProducts(args) {
+  try {
+    const { keyword } = args;
+
+    if (!keyword || !keyword.trim()) {
+      return {
+        error: 'Missing required parameter',
+        message: 'keyword parameter is required',
+      };
+    }
+
+    // 确保在京东域名
+    if (!window.location.href.includes('jd.com')) {
+      return {
+        error: 'Not on JD.com',
+        message: 'Please navigate to JD.com homepage first using www.jd.com.navigate_to_homepage',
+      };
+    }
+
+    // 已在搜索结果页 → 直接解析
+    if (window.location.href.includes('search.jd.com/Search')) {
+      // 等待商品卡片渲染
+      await waitForElement('._wrapper_1m8y1_3[data-sku]', 8000);
+      await sleep(500);
+
+      const products = parseSearchResults();
+
+      return {
+        status: 'success',
+        keyword: keyword.trim(),
+        currentUrl: window.location.href,
+        totalProducts: products.length,
+        products,
+      };
+    }
+
+    // 不在搜索结果页 → 导航过去
+    const currentUrl = window.location.href;
+    const searchUrl = `https://search.jd.com/Search?keyword=${encodeURIComponent(keyword.trim())}&enc=utf-8`;
+
+    setTimeout(() => {
+      window.location.href = searchUrl;
+    }, 100);
+
+    return {
+      status: 'navigating',
+      message: `Searching for "${keyword.trim()}". Please wait 3-5 seconds for the search results page to load, then call this tool again to get the product list.`,
+      keyword: keyword.trim(),
+      searchUrl,
+      previousUrl: currentUrl,
+      note: 'Wait for the search results page to load, then call www.jd.com.search_products again with the same keyword to parse results.',
+    };
+  } catch (error) {
+    return {
+      error: 'Failed to search products',
+      message: error.message,
+    };
+  }
+}
+
+/**
  * Open a product page.
  *
  * @param {object} args - { url: string }
@@ -695,6 +837,23 @@ if (isSettlementIframe) {
     name: 'jd-adapter',
     match: ['jd.com'],
     tools: [
+      {
+        name: 'www.jd.com.search_products',
+        description:
+          'Search for products on JD.com homepage by keyword. Fills the search box and submits the search. If currently on the homepage, it navigates to the search results page — call this tool again after 3-5 seconds to get the product list. If already on the search results page, it returns the parsed product list.',
+        parameters: {
+          type: 'object',
+          properties: {
+            keyword: {
+              type: 'string',
+              description: 'Search keyword (e.g., "耳机", "笔记本电脑", "运动鞋")',
+            },
+          },
+          required: ['keyword'],
+        },
+        handler: (args) => searchProducts(args),
+      },
+
       {
         name: 'www.jd.com.navigate_to_homepage',
         description:

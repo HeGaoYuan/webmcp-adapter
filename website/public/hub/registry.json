@@ -50,5 +50,21 @@
         }
       }
     }
+    ,{
+      "id": "www.xiaohongshu.com",
+      "name": "Xiaohongshu",
+      "description": "Xiaohongshu (小红书): navigate homepage, search notes by keyword",
+      "author": "webmcp-team",
+      "match": ["xiaohongshu.com"],
+      "version": "2026-03-10T00:00:00Z",
+      "verified_on": "2026-03-10",
+      "homepage": "https://github.com/HeGaoYuan/webmcp-adapter/tree/main/hub/adapters/www.xiaohongshu.com",
+      "i18n": {
+        "zh": {
+          "name": "小红书",
+          "description": "小红书：导航主页、按关键字搜索帖子"
+        }
+      }
+    }
   ]
 }
