@@ -1,0 +1,85 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="200" height="195" viewBox="0 0 200 195">
+  <!-- 肩膀/身体下半部分 -->
+  <rect x="52" y="123" rx="25" ry="20" width="96" height="38" fill="#A0522D" stroke="#263238" stroke-width="7"/>
+
+  <!-- 牛头 -->
+  <ellipse cx="100" cy="82" rx="47" ry="53" fill="#A0522D" stroke="#263238" stroke-width="7"/>
+
+  <!-- 左耳 -->
+  <ellipse cx="49" cy="71" rx="16" ry="21" fill="#A0522D" stroke="#263238" stroke-width="5" transform="rotate(-35 49 71)"/>
+  <!-- 右耳 -->
+  <ellipse cx="151" cy="71" rx="16" ry="21" fill="#A0522D" stroke="#263238" stroke-width="5" transform="rotate(35 151 71)"/>
+
+  <!-- 左牛角 -->
+  <path d="M64 43 C51 29 39 23 37 33" fill="none" stroke="#EDE0C8" stroke-width="12" stroke-linecap="round" stroke-linejoin="round"/>
+  <!-- 右牛角 -->
+  <path d="M136 43 C149 29 161 23 163 33" fill="none" stroke="#EDE0C8" stroke-width="12" stroke-linecap="round" stroke-linejoin="round"/>
+
+  <!-- 眼睛 -->
+  <!-- 左眼白 -->
+  <ellipse cx="76" cy="69" rx="8.5" ry="9.5" fill="#FFF"/>
+  <!-- 左眼瞳孔 -->
+  <ellipse cx="75.5" cy="69" rx="4.2" ry="5" fill="#263238"/>
+  <!-- 左眼高光 -->
+  <circle cx="72.5" cy="66.5" r="1.6" fill="#FFF"/>
+  
+  <!-- 右眼白 -->
+  <ellipse cx="124" cy="69" rx="8.5" ry="9.5" fill="#FFF"/>
+  <!-- 右眼瞳孔 -->
+  <ellipse cx="124.5" cy="69" rx="4.2" ry="5" fill="#263238"/>
+  <!-- 右眼高光 -->
+  <circle cx="127.5" cy="66.5" r="1.6" fill="#FFF"/>
+
+  <!-- 鼻子区域 -->
+  <ellipse cx="100" cy="98" rx="23" ry="15.5" fill="#A0522D" stroke="#263238" stroke-width="4"/>
+
+  <!-- 鼻孔 -->
+  <ellipse cx="85.5" cy="95" rx="3.8" ry="5.2" fill="#263238"/>
+  <ellipse cx="114.5" cy="95" rx="3.8" ry="5.2" fill="#263238"/>
+
+  <!-- 微笑嘴巴 -->
+  <path d="M76 109 C81 117 119 117 123 109" fill="transparent" stroke="#263238" stroke-width="3"/>
+
+  <!-- 左臂（捧杯） -->
+  <path d="M61 125 C63 137 69 143 76 151" fill="transparent" stroke="#A0522D" stroke-width="16" stroke-linecap="round"/>
+  <!-- 右臂（捧杯） -->
+  <path d="M139 125 C137 137 131 143 124 151" fill="transparent" stroke="#A0522D" stroke-width="16" stroke-linecap="round"/>
+
+  <!-- 咖啡杯主体 -->
+  <path d="M79 139 
+           L79 160 
+           C79 167 80 170 85 170.5 
+           L115 170.5 
+           C121 170 121 167 121 160 
+           L121 139 
+           C121 135 117 134 100 134 
+           C83 134 81 135 79 139 z" 
+        fill="#FEF8EF" stroke="#263238" stroke-width="4"/>
+
+  <!-- 杯内咖啡 -->
+  <ellipse cx="100" cy="139.5" rx="16.8" ry="3.8" fill="#5F3E2E"/>
+
+  <!-- 杯把手 -->
+  <path d="M121 140 
+           C130 138 137 142 137 155 
+           C137 164 131 167 121 166" 
+        fill="transparent" stroke="#263238" stroke-width="4"/>
+
+  <!-- 杯碟 -->
+  <ellipse cx="100" cy="172" rx="24" ry="4.5" fill="#FEF8EF" stroke="#263238" stroke-width="3"/>
+
+  <!-- 蒸汽（三道波浪） -->
+  <!-- 左蒸汽 -->
+  <path d="M83 127 Q78 121 84 115 Q89 109 81 105" fill="transparent" stroke="#263238" stroke-width="2.8"/>
+  <!-- 中蒸汽 -->
+  <path d="M97 126 Q93 119 99 113 Q104 107 95 103" fill="transparent" stroke="#263238" stroke-width="2.6"/>
+  <!-- 右蒸汽 -->
+  <path d="M109 127 Q114 120 107 114 Q103 108 111 103" fill="transparent" stroke="#263238" stroke-width="2.5"/>
+
+  <!-- W 字母 -->
+  <text x="100" y="155.5" text-anchor="middle" dominant-baseline="middle" 
+        font-family="'Arial Black', sans-serif" 
+        font-size="17.5" font-weight="900" fill="#263238" letter-spacing="-1.5px">W</text>
+</svg>
+

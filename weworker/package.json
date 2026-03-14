@@ -1,0 +1,89 @@
+{
+  "name": "weworker",
+  "version": "0.1.0",
+  "description": "WeWorker — AI 操作网站的桌面应用",
+  "type": "module",
+  "main": "electron/main.js",
+  "scripts": {
+    "dev": "concurrently \"npm run dev:renderer\" \"npm run dev:electron\"",
+    "dev:renderer": "cd renderer && npm run dev",
+    "dev:electron": "wait-on http://localhost:5173 && NODE_ENV=development electron .",
+    "build:renderer": "cd renderer && npm run build",
+    "build:backend": "cd backend && pyinstaller build.spec --distpath ../build/backend-dist --workpath ../build/backend-work --noconfirm",
+    "build:bridge": "node scripts/bundle-bridge.cjs",
+    "build:bridge:win": "node scripts/bundle-bridge.cjs",
+    "build:mac": "npm run build:renderer && npm run build:backend && npm run build:bridge && electron-builder --mac",
+    "build:win": "npm run build:renderer && npm run build:backend && npm run build:bridge:win && electron-builder --win",
+    "install:all": "npm install && cd renderer && npm install"
+  },
+  "dependencies": {
+    "electron-updater": "^6.1.0"
+  },
+  "devDependencies": {
+    "@yao-pkg/pkg": "^5.11.0",
+    "concurrently": "^8.2.0",
+    "electron": "^31.7.7",
+    "electron-builder": "^24.0.0",
+    "esbuild": "^0.27.4",
+    "wait-on": "^7.2.0"
+  },
+  "build": {
+    "appId": "com.weworker.app",
+    "productName": "WeWorker",
+    "directories": {
+      "output": "dist-app"
+    },
+    "files": [
+      "electron/**",
+      "renderer/dist/**"
+    ],
+    "extraResources": [
+      {
+        "from": "build/backend-dist/",
+        "to": "backend",
+        "filter": [
+          "wework-backend",
+          "wework-backend.exe"
+        ]
+      },
+      {
+        "from": "build/bridge-dist/",
+        "to": "bridge",
+        "filter": ["bridge.cjs"]
+      }
+    ],
+    "mac": {
+      "target": [
+        {
+          "target": "dmg",
+          "arch": [
+            "x64",
+            "arm64"
+          ]
+        }
+      ],
+      "icon": "asset/icon.icns",
+      "category": "public.app-category.productivity"
+    },
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "assets/icon.ico"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true
+    },
+    "linux": {
+      "target": "AppImage"
+    }
+  }
+}
